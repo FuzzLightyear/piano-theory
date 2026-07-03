@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Piano Theory — tests</title>
+<style>
+  body { margin: 2rem auto; max-width: 640px; background: #141417; color: #e9e5dc; font: 14px/1.6 system-ui, sans-serif; }
+  h1 { font-size: 16px; }
+  #summary { font-weight: 700; }
+  ul { padding-left: 1.4em; }
+  li { margin: .15em 0; }
+  .pass { color: #37c8b2; }
+  .fail { color: #ff8a80; }
+  .pass::marker { content: '✓ '; }
+  .fail::marker { content: '✗ '; }
+</style>
+</head>
+<body>
+<h1>Piano Theory — tests</h1>
+<p id="summary">running…</p>
+<ul id="results"></ul>
+<script type="module" src="tests.js"></script>
+</body>
+</html>

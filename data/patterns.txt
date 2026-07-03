@@ -1,0 +1,28 @@
+# Piano Theory — chord and scale definitions
+#
+# Format:   id: Display Name = degrees
+# Degrees:  1-13 with an optional b or # prefix (b3 = flat third, #5 = sharp fifth).
+#           1 is the root; 9, 11, and 13 reach past the octave for extended chords.
+# Entries belong to the section header above them. Full-line # comments only.
+
+[Scales]
+major:          Major scale       = 1 2 3 4 5 6 7
+minor:          Natural minor     = 1 2 b3 4 5 b6 b7
+harmonicMinor:  Harmonic minor    = 1 2 b3 4 5 b6 7
+melodicMinor:   Melodic minor     = 1 2 b3 4 5 6 7
+dorian:         Dorian mode       = 1 2 b3 4 5 6 b7
+mixolydian:     Mixolydian mode   = 1 2 3 4 5 6 b7
+majPent:        Major pentatonic  = 1 2 3 5 6
+minPent:        Minor pentatonic  = 1 b3 4 5 b7
+blues:          Blues scale       = 1 b3 4 b5 5 b7
+chromatic:      Chromatic         = 1 b2 2 b3 3 4 b5 5 b6 6 b7 7
+
+[Chords]
+maj:    Major triad      = 1 3 5
+min:    Minor triad      = 1 b3 5
+dim:    Diminished triad = 1 b3 b5
+aug:    Augmented triad  = 1 3 #5
+sus4:   Sus4 chord       = 1 4 5
+maj7:   Major 7th        = 1 3 5 7
+min7:   Minor 7th        = 1 b3 5 b7
+dom7:   Dominant 7th     = 1 3 5 b7
