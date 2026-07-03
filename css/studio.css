@@ -287,6 +287,203 @@ button:focus-visible, select:focus-visible, input:focus-visible {
   transform-style: preserve-3d;
 }
 
+/* ---- keyboard ----
+   Key materials are static CSS driven by class combinations so pressing a key
+   is a single class toggle, never a style rebuild. Classes on each .key:
+   white|black, hl (in pattern) or hl-root (pattern root), down (pressed).
+   Geometry constants mirror js/keyboard.js: white 41x250x32 in a 44px slot,
+   black 27x158x46 with its top 12px above the white tops. */
+
+:root {
+  /* key materials */
+  --top-w: linear-gradient(177deg, #e7e0d0 0%, #fffdf7 46%, #f4efe4 100%);
+  --top-b: radial-gradient(78% 42% at 50% 82%, rgba(255,255,255,.20), transparent 60%),
+           linear-gradient(180deg, transparent 64%, rgba(255,255,255,.18) 79%, transparent 90%),
+           linear-gradient(179deg, #5c5c67 0%, #36363f 15%, #1c1c23 43%, #0a0a0e 76%, #040406 91%, #26262e 100%);
+  --front-w: linear-gradient(180deg, #f4eddf 0%, #e4dccb 22%, #cdc5b2 100%);
+  --front-b: linear-gradient(90deg, rgba(255,255,255,0) 15%, rgba(255,255,255,.14) 48%, rgba(255,255,255,0) 82%),
+             linear-gradient(180deg, #56565f 0%, #34343d 13%, #17171d 46%, #08080b 80%, #111118 100%);
+  --sidel-w: linear-gradient(180deg, #e3dccb 0%, #d2cab8 60%, #c2baa6 100%);
+  --sider-w: linear-gradient(180deg, #cdc5b2 0%, #bbb39f 60%, #a89f8b 100%);
+  --sidel-b: linear-gradient(180deg, #45454e 0%, #1d1d24 38%, #0a0a0e 100%);
+  --sider-b: linear-gradient(180deg, #2c2c33 0%, #101015 40%, #050508 100%);
+
+  /* pressed-state overlays: recessed shading plus a specular catch at the front lip */
+  --press-w: linear-gradient(180deg, rgba(0,0,0,.30) 0%, rgba(0,0,0,.14) 26%, rgba(0,0,0,.04) 60%, rgba(255,255,255,.12) 100%);
+  --press-b: linear-gradient(180deg, rgba(0,0,0,.58) 0%, rgba(0,0,0,.34) 24%, rgba(0,0,0,.12) 58%, rgba(255,255,255,.22) 100%);
+  --pressf-w: linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.18));
+  --pressf-b: linear-gradient(180deg, rgba(0,0,0,.34), rgba(0,0,0,.46));
+  --presss-w: linear-gradient(180deg, rgba(0,0,0,.14), rgba(0,0,0,.22));
+  --presss-b: linear-gradient(180deg, rgba(0,0,0,.40), rgba(0,0,0,.52));
+
+  /* highlight washes: glassy accent that lets the key material read through
+     (w|b = white|black key, r|m = root|member note) */
+  --wash-wr: radial-gradient(130% 70% at 50% 16%, rgba(255,255,255,.55), transparent 52%),
+             linear-gradient(180deg, rgba(244,166,60,.40) 0%, rgba(244,166,60,.24) 70%, rgba(244,166,60,.34) 100%);
+  --wash-wm: radial-gradient(130% 70% at 50% 16%, rgba(255,255,255,.55), transparent 52%),
+             linear-gradient(180deg, rgba(55,200,178,.30) 0%, rgba(55,200,178,.17) 70%, rgba(55,200,178,.26) 100%);
+  --wash-br: radial-gradient(130% 70% at 50% 16%, rgba(255,255,255,.30), transparent 52%),
+             linear-gradient(180deg, rgba(244,166,60,.66) 0%, rgba(244,166,60,.46) 70%, rgba(244,166,60,.56) 100%);
+  --wash-bm: radial-gradient(130% 70% at 50% 16%, rgba(255,255,255,.30), transparent 52%),
+             linear-gradient(180deg, rgba(55,200,178,.56) 0%, rgba(55,200,178,.38) 70%, rgba(55,200,178,.48) 100%);
+
+  /* top-face gloss, highlight glow, and press glow shadows */
+  --gloss-w: inset 0 2px 2px rgba(255,255,255,.45), inset 0 -14px 18px rgba(0,0,0,.10), inset -3px 0 6px rgba(0,0,0,.22), inset 3px 0 5px rgba(255,255,255,.28);
+  --gloss-b: inset 0 2px 1px rgba(255,255,255,.30), inset 0 -16px 22px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.18);
+  --hlg-wr: inset 0 0 14px rgba(244,166,60,.4);
+  --hlg-wm: inset 0 0 14px rgba(55,200,178,.4);
+  --hlg-br: inset 0 0 18px rgba(244,166,60,.55);
+  --hlg-bm: inset 0 0 18px rgba(55,200,178,.55);
+  --pg-r: inset 0 8px 16px rgba(244,166,60,.72);
+  --pg-m: inset 0 8px 16px rgba(55,200,178,.72);
+  --pgd-w: inset 0 7px 15px rgba(0,0,0,.42);
+  --pgd-b: inset 0 9px 18px rgba(0,0,0,.6);
+}
+
+.key {
+  position: absolute;
+  top: 0;
+  transform-style: preserve-3d;
+  cursor: pointer;
+}
+.key.white { width: 41px; height: 250px; transform: translateZ(16px); }
+.key.black { width: 27px; height: 158px; transform: translateZ(21px); z-index: 5; }
+
+.kbox {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform-origin: 50% 2% 0;
+  transform: translateZ(0);
+  transition: transform .17s cubic-bezier(.22, .8, .3, 1.04);
+}
+.key.down .kbox { transition: transform .06s cubic-bezier(.3, .62, .36, 1); }
+
+/* Angled view: a physical hinge — white keys tilt forward at a far-back
+   fulcrum, black keys dip near-vertically (a big tilt would swing them below
+   the white tops, where opaque white keys would paint over them). */
+.view-angled .key.white.down .kbox { transform: translateZ(-7px) rotateX(-4deg); }
+.view-angled .key.black.down .kbox { transform: translateZ(-5px) rotateX(-2.2deg); }
+
+/* Overhead view: a vertical dip is along the camera axis and invisible, so
+   the press reads in-plane — the key shrinks slightly toward its centre. */
+.view-top .kbox { transform-origin: 50% 50% 0; transition: transform .16s cubic-bezier(.3, .7, .3, 1); }
+.view-top .key.down .kbox { transition: transform .07s cubic-bezier(.3, .6, .35, 1); }
+.view-top .key.white.down .kbox { transform: translateZ(-7px) scale(.86); }
+.view-top .key.black.down .kbox { transform: translateZ(-5px) scale(.8); }
+
+.face { position: absolute; left: 50%; top: 50%; }
+
+/* top faces */
+.white .f-top { width: 41px; height: 250px; transform: translate(-50%, -50%) translateZ(16px); border-radius: 1px 1px 6px 6px; }
+.black .f-top { width: 27px; height: 158px; transform: translate(-50%, -50%) translateZ(23px); border-radius: 1px 1px 4px 4px; }
+.white .f-top { background: var(--top-w); box-shadow: var(--gloss-w); }
+.black .f-top { background: var(--top-b); box-shadow: var(--gloss-b); }
+.white.hl .f-top { background: var(--wash-wm), var(--top-w); box-shadow: var(--hlg-wm), var(--gloss-w); }
+.white.hl-root .f-top { background: var(--wash-wr), var(--top-w); box-shadow: var(--hlg-wr), var(--gloss-w); }
+.black.hl .f-top { background: var(--wash-bm), var(--top-b); box-shadow: var(--hlg-bm), var(--gloss-b); }
+.black.hl-root .f-top { background: var(--wash-br), var(--top-b); box-shadow: var(--hlg-br), var(--gloss-b); }
+.white.down .f-top { background: var(--press-w), var(--top-w); box-shadow: var(--pgd-w), var(--gloss-w); }
+.black.down .f-top { background: var(--press-b), var(--top-b); box-shadow: var(--pgd-b), var(--gloss-b); }
+.white.hl.down .f-top { background: var(--press-w), var(--wash-wm), var(--top-w); box-shadow: var(--hlg-wm), var(--pg-m), var(--gloss-w); }
+.white.hl-root.down .f-top { background: var(--press-w), var(--wash-wr), var(--top-w); box-shadow: var(--hlg-wr), var(--pg-r), var(--gloss-w); }
+.black.hl.down .f-top { background: var(--press-b), var(--wash-bm), var(--top-b); box-shadow: var(--pg-m), var(--hlg-bm), var(--gloss-b); }
+.black.hl-root.down .f-top { background: var(--press-b), var(--wash-br), var(--top-b); box-shadow: var(--pg-r), var(--hlg-br), var(--gloss-b); }
+
+/* front faces (player-facing edge) */
+.f-front { transition: background .09s ease; }
+.white .f-front {
+  width: 41px; height: 32px;
+  transform: translate(-50%, -50%) rotateX(-90deg) translateZ(125px);
+  border-radius: 0 0 5px 5px;
+  background: var(--front-w);
+  box-shadow: inset 0 2px 2px rgba(255,255,255,.55), inset 0 -4px 6px rgba(0,0,0,.18), inset 2px 0 5px rgba(0,0,0,.12), inset -2px 0 5px rgba(0,0,0,.12);
+}
+.black .f-front {
+  width: 27px; height: 46px;
+  transform: translate(-50%, -50%) rotateX(-90deg) translateZ(79px);
+  border-radius: 0 0 4px 4px;
+  background: var(--front-b);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.5), inset 0 -5px 8px rgba(0,0,0,.7), inset 3px 0 7px rgba(0,0,0,.55), inset -3px 0 7px rgba(0,0,0,.55);
+}
+.white.down .f-front { background: var(--pressf-w), var(--front-w); }
+.black.down .f-front { background: var(--pressf-b), var(--front-b); }
+
+/* side faces: left edge lit (light from upper-left), right edge shaded */
+.f-left, .f-right { transition: background .1s ease; }
+.white .f-left, .white .f-right { width: 32px; height: 250px; }
+.black .f-left, .black .f-right { width: 46px; height: 158px; }
+.white .f-left { transform: translate(-50%, -50%) rotateY(-90deg) translateZ(20.5px); }
+.white .f-right { transform: translate(-50%, -50%) rotateY(90deg) translateZ(20.5px); }
+.black .f-left { transform: translate(-50%, -50%) rotateY(-90deg) translateZ(13.5px); }
+.black .f-right { transform: translate(-50%, -50%) rotateY(90deg) translateZ(13.5px); }
+.white .f-left { background: var(--sidel-w); box-shadow: inset 0 2px 3px rgba(255,255,255,.3), inset 0 0 16px rgba(0,0,0,.16); }
+.white .f-right { background: var(--sider-w); box-shadow: inset 0 0 18px rgba(0,0,0,.3); }
+.black .f-left { background: var(--sidel-b); box-shadow: inset 0 2px 3px rgba(255,255,255,.25), inset 0 0 16px rgba(0,0,0,.4); }
+.black .f-right { background: var(--sider-b); box-shadow: inset 0 0 18px rgba(0,0,0,.6); }
+.white.down .f-left { background: var(--presss-w), var(--sidel-w); }
+.white.down .f-right { background: var(--presss-w), var(--sider-w); }
+.black.down .f-left { background: var(--presss-b), var(--sidel-b); }
+.black.down .f-right { background: var(--presss-b), var(--sider-b); }
+
+/* gem markers for pattern notes, near the front edge; the glossy highlight is
+   kept tight in one corner so the glyph sits on saturated colour */
+.f-gem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -.02em;
+  pointer-events: none;
+  text-shadow: 0 0 1px rgba(0,0,0,.7), 0 1px 1px rgba(0,0,0,.6), 0 0 2px rgba(0,0,0,.45);
+  box-shadow: 0 3px 7px rgba(0,0,0,.5), inset 0 1px 1px rgba(255,255,255,.7);
+}
+.f-gem.root {
+  width: 22px; height: 22px;
+  font-size: 11px;
+  background: radial-gradient(circle at 32% 26%, rgba(255,255,255,.82) 0%, #f4a63c 30%, #9a560f 100%);
+  border: 1.5px solid rgba(255,253,247,.95);
+}
+.f-gem.member {
+  width: 18px; height: 18px;
+  font-size: 10px;
+  background: radial-gradient(circle at 32% 26%, rgba(255,255,255,.82) 0%, #37c8b2 30%, #0d6b5b 100%);
+  border: 1px solid rgba(255,255,255,.62);
+}
+.white .f-gem { transform: translate(-50%, -50%) translateY(105px) translateZ(16.8px); }
+.black .f-gem { transform: translate(-50%, -50%) translateY(59px) translateZ(23.8px); }
+
+/* resting note labels: near-solid ink on ivory, bright off-white on black */
+.f-lbl {
+  width: 24px; height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: -.02em;
+  pointer-events: none;
+}
+.white .f-lbl {
+  transform: translate(-50%, -50%) translateY(107px) translateZ(16.6px);
+  color: rgba(28,26,22,.88);
+  text-shadow: 0 1px 0 rgba(255,255,255,.45);
+}
+.black .f-lbl {
+  transform: translate(-50%, -50%) translateY(61px) translateZ(23.6px);
+  color: rgba(249,247,242,.94);
+  text-shadow: 0 1px 2px rgba(0,0,0,.6);
+}
+
+.chassis { position: absolute; }
+
 /* ---- status line ---- */
 
 .status {
