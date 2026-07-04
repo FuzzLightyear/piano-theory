@@ -35,6 +35,17 @@ const sounding = new Set(); // keys that already triggered audio while held
 let pointerActive = false;
 let timers = [];
 
+// Musical typing: home row plays naturals, the row above plays sharps,
+// mirroring the layout piano apps have converged on. Physical key codes so
+// the mapping survives non-QWERTY layouts.
+const TYPING_OFFSETS = new Map(Object.entries({
+  KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6,
+  KeyG: 7, KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11, KeyK: 12, KeyO: 13,
+  KeyL: 14, KeyP: 15, Semicolon: 16, Quote: 17,
+}));
+let typingBase = 60; // C4
+const heldCodes = new Map(); // physical key -> sounded midi, so octave shifts never strand a release
+
 const clampKeys = (n, startMidi) =>
   Math.max(MIN_KEYS, Math.min(MAX_KEYS, MIDI_MAX - startMidi + 1, Math.round(n)));
 
@@ -139,21 +150,25 @@ function syncControls() {
   $('sustain-label').textContent = `${(5.2 * state.sustain).toFixed(1)}s`;
   $('sound').textContent = state.sound ? '🔊 On' : '🔇 Off';
   $('sound').classList.toggle('active', state.sound);
+  $('sound').setAttribute('aria-pressed', state.sound);
 
+  const mark = (b, active) => {
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', active);
+  };
   for (const b of $('presets').children) {
-    b.classList.toggle('active',
-      parseNote(b.dataset.start) === state.startMidi && Number(b.dataset.count) === state.keyCount);
+    mark(b, parseNote(b.dataset.start) === state.startMidi && Number(b.dataset.count) === state.keyCount);
   }
-  for (const b of $('label-modes').children) b.classList.toggle('active', b.dataset.mode === state.labelMode);
-  for (const b of $('views').children) b.classList.toggle('active', b.dataset.view === state.view);
-  for (const b of $('reverbs').children) b.classList.toggle('active', b.dataset.reverb === state.reverb);
+  for (const b of $('label-modes').children) mark(b, b.dataset.mode === state.labelMode);
+  for (const b of $('views').children) mark(b, b.dataset.view === state.view);
+  for (const b of $('reverbs').children) mark(b, b.dataset.reverb === state.reverb);
 
   const play = $('play');
   play.disabled = sequence().length === 0;
   play.textContent = state.playing ? '■ Stop' : '▶ Play';
   play.classList.toggle('on', state.playing);
 
-  const base = 'Click keys to play · drag across for glissando';
+  const base = 'Click keys or type A–L to play · Z/X shifts octave · drag for glissando';
   const pat = currentPattern();
   $('status').textContent = pat ? `${base} · ${PC_NAMES[state.rootPc]} ${pat.name}` : base;
 }
@@ -216,6 +231,39 @@ function bindEvents() {
   window.addEventListener('pointercancel', () => {
     pointerActive = false;
     if (!state.playing) releaseAll();
+  });
+
+  window.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const focus = document.activeElement;
+    if (focus && /^(SELECT|INPUT|TEXTAREA)$/.test(focus.tagName)) return;
+    if (e.key === 'Escape') {
+      if (state.playing) stopPlayback();
+      return;
+    }
+    if (e.repeat) return;
+    if (e.code === 'KeyZ' || e.code === 'KeyX') {
+      typingBase = Math.min(96, Math.max(24, typingBase + (e.code === 'KeyZ' ? -12 : 12)));
+      return;
+    }
+    const offset = TYPING_OFFSETS.get(e.code);
+    if (offset === undefined) return;
+    e.preventDefault();
+    const midi = typingBase + offset;
+    if (midi > MIDI_MAX) return;
+    heldCodes.set(e.code, midi);
+    press(midi);
+  });
+  window.addEventListener('keyup', e => {
+    const midi = heldCodes.get(e.code);
+    if (midi !== undefined) {
+      heldCodes.delete(e.code);
+      release(midi);
+    }
+  });
+  window.addEventListener('blur', () => {
+    for (const midi of heldCodes.values()) release(midi);
+    heldCodes.clear();
   });
 
   $('presets').addEventListener('click', e => {
