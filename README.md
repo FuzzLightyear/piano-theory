@@ -1,9 +1,12 @@
 # Piano Theory
 
-An interactive 3D piano for exploring chords and scales in the browser. Pick a
+An interactive 3D piano for exploring chords and scales in the browser —
+**[try it live](https://fuzzlightyear.github.io/piano-theory/)**. Pick a
 root and a pattern and the keyboard lights up the notes, with gem markers on
 each pattern tone; click keys (or drag across them) to hear a synthesized
-piano, or hit Play to run the scale up and down.
+piano, or hit Play to run the scale up and down. The computer keyboard works
+too: the home row plays naturals, the row above plays sharps, and Z/X shift
+the octave.
 
 Built with plain HTML, CSS, and JavaScript. No frameworks, no build step, no
 npm, no runtime dependencies of any kind — the keyboard is real CSS 3D
@@ -54,3 +57,8 @@ and hall presets).
 Open [`tests/tests.html`](tests/tests.html) from the same local server. The
 page carries its own small assertion harness; one test fetches the shipped
 pattern file and checks every definition against known interval sets.
+
+## License
+
+MIT for the code. The bundled fonts (Space Grotesk, Manrope) are under the
+SIL Open Font License; their license texts live in [`fonts/`](fonts/).
