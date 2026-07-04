@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0c0c0e">
 <title>Piano Theory</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23141417'/%3E%3Crect x='2' y='4' width='3' height='8' rx='.6' fill='%23f4efe4'/%3E%3Crect x='6.5' y='4' width='3' height='8' rx='.6' fill='%23f4efe4'/%3E%3Crect x='11' y='4' width='3' height='8' rx='.6' fill='%23f4efe4'/%3E%3Crect x='4.6' y='4' width='1.9' height='5' fill='%230c0c10'/%3E%3Crect x='9.1' y='4' width='1.9' height='5' fill='%230c0c10'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="css/studio.css">
 <script type="module" src="js/app.js"></script>
 </head>
@@ -91,14 +93,14 @@
     </div>
   </header>
 
-  <main class="stage">
+  <main class="stage" aria-label="Piano keyboard. Play notes by typing: A through quote for naturals, the row above for sharps, Z and X to shift octave.">
     <div class="floor-shadow" aria-hidden="true"></div>
     <div class="rig" id="rig">
       <div class="board" id="board"></div>
     </div>
   </main>
 
-  <footer class="status" id="status">Click keys to play · drag across for glissando</footer>
+  <footer class="status" id="status" aria-live="polite">Click keys or type A–L to play · Z/X shifts octave · drag for glissando</footer>
 </div>
 </body>
 </html>
