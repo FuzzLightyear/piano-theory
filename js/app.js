@@ -6,6 +6,7 @@ import { MIDI_MIN, MIDI_MAX, PC_NAMES, parseNote, noteName, pitchClass } from '.
 import { parsePatterns } from './patterns.js';
 import { Keyboard } from './keyboard.js';
 import { Synth } from './audio.js';
+import { CircleOfFifths, pcOf, positionOf, SIGNATURES } from './circle.js';
 
 const MIN_KEYS = 12;
 const MAX_KEYS = 88;
@@ -21,15 +22,22 @@ const state = {
   patternId: 'major',
   labelMode: 'pattern',
   view: 'angled',
+  circle: true,
   sound: true,
   sustain: 1,
   reverb: 'room',
-  playing: false,
+  playing: false, // false | 'scale' | 'fifths'
 };
 
 let patterns = null;
 const keyboard = new Keyboard($('rig'), $('board'));
 const synth = new Synth();
+const circle = new CircleOfFifths($('circle-svg'), {
+  onSelect: pc => {
+    state.rootPc = pc;
+    rebuild();
+  },
+});
 const pressed = new Set();  // keys shown as down
 const sounding = new Set(); // keys that already triggered audio while held
 let pointerActive = false;
@@ -99,6 +107,7 @@ function sequence() {
 
 function stopPlayback() {
   releaseAll();
+  circle.setActive(null);
   state.playing = false;
   syncControls();
 }
@@ -107,7 +116,7 @@ function togglePlay() {
   if (state.playing) return stopPlayback();
   const seq = sequence();
   if (!seq.length) return;
-  state.playing = true;
+  state.playing = 'scale';
   syncControls();
   let i = 0;
   const step = () => {
@@ -124,19 +133,63 @@ function togglePlay() {
   step();
 }
 
+// Walk the whole circle from the current root: twelve fifths land back home.
+// Tonics sound within one octave band, so each step is the classic
+// up-a-fifth / down-a-fourth motion.
+function toggleFifths() {
+  if (state.playing) return stopPlayback();
+  const startPos = positionOf(state.rootPc);
+  state.playing = 'fifths';
+  syncControls();
+  let step = 0;
+  let prevMidi = null;
+  const tick = () => {
+    if (prevMidi !== null) release(prevMidi);
+    if (step > 12) {
+      circle.setActive(null);
+      state.playing = false;
+      syncControls();
+      return;
+    }
+    const pos = (startPos + step) % 12;
+    circle.setActive(pos);
+    prevMidi = 48 + pcOf(pos);
+    press(prevMidi);
+    step++;
+    timers.push(setTimeout(tick, 360));
+  };
+  tick();
+}
+
 // ---- rendering ----
 
 function rebuild() {
   if (state.playing) stopPlayback(); else releaseAll();
+  const semitones = currentSemitones();
   keyboard.render({
     startMidi: state.startMidi,
     keyCount: state.keyCount,
     rootPc: state.rootPc,
-    semitones: currentSemitones(),
+    semitones,
     labelMode: state.labelMode,
     view: state.view,
+    maxWidth: state.circle ? 640 : undefined,
+  });
+  const pat = currentPattern();
+  let sig = null;
+  if (state.patternId === 'major') sig = SIGNATURES[positionOf(state.rootPc)];
+  else if (state.patternId === 'minor') sig = SIGNATURES[positionOf((state.rootPc + 3) % 12)];
+  circle.update({
+    rootPc: state.rootPc,
+    pcs: new Set(semitones.map(s => (state.rootPc + s) % 12)),
+    lines: [PC_NAMES[state.rootPc], pat ? pat.name : '', sig ?? ''],
   });
   syncControls();
+}
+
+function syncCirclePanel() {
+  $('circle-panel').hidden = !state.circle;
+  document.querySelector('.app').classList.toggle('with-circle', state.circle);
 }
 
 function syncControls() {
@@ -160,13 +213,16 @@ function syncControls() {
     mark(b, parseNote(b.dataset.start) === state.startMidi && Number(b.dataset.count) === state.keyCount);
   }
   for (const b of $('label-modes').children) mark(b, b.dataset.mode === state.labelMode);
-  for (const b of $('views').children) mark(b, b.dataset.view === state.view);
+  for (const b of $('views').children) { if (b.dataset.view) mark(b, b.dataset.view === state.view); }
   for (const b of $('reverbs').children) mark(b, b.dataset.reverb === state.reverb);
+  mark($('circle-toggle'), state.circle);
 
   const play = $('play');
   play.disabled = sequence().length === 0;
-  play.textContent = state.playing ? '■ Stop' : '▶ Play';
-  play.classList.toggle('on', state.playing);
+  play.textContent = state.playing === 'scale' ? '■ Stop' : '▶ Play';
+  play.classList.toggle('on', state.playing === 'scale');
+  $('play-fifths').textContent = state.playing === 'fifths' ? '■ Stop' : '▶ Fifths';
+  $('play-fifths').classList.toggle('active', state.playing === 'fifths');
 
   const base = 'Click keys or type A–L to play · Z/X shifts octave · drag for glissando';
   const pat = currentPattern();
@@ -307,10 +363,16 @@ function bindEvents() {
   });
   $('views').addEventListener('click', e => {
     const b = e.target.closest('button');
-    if (!b) return;
+    if (!b || !b.dataset.view) return;
     state.view = b.dataset.view;
     rebuild();
   });
+  $('circle-toggle').addEventListener('click', () => {
+    state.circle = !state.circle;
+    syncCirclePanel();
+    rebuild();
+  });
+  $('play-fifths').addEventListener('click', toggleFifths);
   $('play').addEventListener('click', togglePlay);
   $('sound').addEventListener('click', () => {
     state.sound = !state.sound;
@@ -343,6 +405,7 @@ async function init() {
   }
   fillSelects();
   bindEvents();
+  syncCirclePanel();
   rebuild();
   if (!patterns) $('status').textContent = 'Pattern definitions failed to load — showing a plain keyboard.';
 }

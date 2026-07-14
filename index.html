@@ -68,6 +68,7 @@
         <div class="row" id="views">
           <button type="button" class="chip cool" data-view="angled">◆ Angled</button>
           <button type="button" class="chip cool" data-view="top">▦ Overhead</button>
+          <button type="button" class="chip cool" id="circle-toggle">◯ Circle</button>
         </div>
       </div>
 
@@ -99,6 +100,13 @@
     <div class="rig" id="rig">
       <div class="board" id="board"></div>
     </div>
+    <aside class="circle-panel" id="circle-panel">
+      <div class="circle-head">
+        <span class="circle-title">Circle of Fifths</span>
+        <button type="button" class="chip sm" id="play-fifths">▶ Fifths</button>
+      </div>
+      <svg id="circle-svg" viewBox="0 0 320 320" aria-label="Circle of fifths: twelve keys a perfect fifth apart, relative minors inside"></svg>
+    </aside>
   </main>
 
   <footer class="status" id="status" aria-live="polite">Click keys or type A–L to play · Z/X shifts octave · drag for glissando</footer>
