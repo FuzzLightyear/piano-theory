@@ -43,6 +43,18 @@ as written. The parser is strict on purpose: unknown tokens, duplicate ids,
 and out-of-order degrees fail with a line number instead of silently drawing
 the wrong notes.
 
+## Circle of fifths
+
+The Circle button in the View group opens a circle-of-fifths panel that stays
+linked to the keyboard: whatever pattern is highlighted on the keys is also
+lit on the circle, with the root in orange. This is where the circle earns
+its keep — a major scale is always seven *consecutive* wedges, a pentatonic
+five, so you can see at a glance why those notes belong together and how
+neighbouring keys overlap. Clicking a wedge re-roots the keyboard to that
+key, the centre shows the key signature for major and minor patterns, and
+the Fifths button walks the full circle from the current root — twelve
+fifths landing back home.
+
 ## Sound
 
 Each note is a bank of sine partials with stretched, slightly inharmonic
