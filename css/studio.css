@@ -486,6 +486,75 @@ button:focus-visible, select:focus-visible, input:focus-visible {
 
 .chassis { position: absolute; }
 
+/* ---- circle of fifths ----
+   Same class-driven approach as the keyboard: geometry is static SVG, state
+   is root/member/tour classes on the wedge groups. */
+
+.circle-panel {
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 15;
+  width: 324px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(40, 41, 47, .82), rgba(24, 25, 29, .82));
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .06);
+  backdrop-filter: blur(14px);
+}
+
+.circle-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.circle-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: .02em;
+  color: var(--ink-strong);
+}
+
+.circle-panel svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* when the panel is open, the stage centres in the remaining width and the
+   keyboard renders at a smaller cap so the two never collide */
+.app.with-circle .stage { padding-left: 356px; }
+.app.with-circle .floor-shadow { left: calc(50% + 178px); }
+
+.wedge { cursor: pointer; }
+.wedge path {
+  fill: rgba(255, 255, 255, .03);
+  stroke: rgba(255, 255, 255, .1);
+  stroke-width: 1;
+  transition: fill .15s, stroke .15s;
+}
+.wedge:hover path { fill: rgba(255, 255, 255, .07); stroke: rgba(255, 255, 255, .22); }
+.wedge:focus-visible { outline: none; }
+.wedge:focus-visible path { stroke: rgba(var(--scale-accent), .7); stroke-width: 1.5; }
+.wedge.member path { fill: rgba(var(--scale-accent), .14); stroke: rgba(var(--scale-accent), .4); }
+.wedge.root path { fill: rgba(var(--root-accent), .16); stroke: rgba(var(--root-accent), .55); }
+.wedge.tour path { fill: rgba(255, 255, 255, .14); stroke: rgba(255, 255, 255, .5); }
+
+.wedge text { pointer-events: none; font-family: var(--font-display); }
+.w-major { font-size: 13px; font-weight: 600; fill: #cfcabf; }
+.w-minor { font-size: 10px; font-weight: 500; fill: var(--muted-2); }
+.wedge.member .w-major, .wedge.member .w-minor { fill: #9fe9dc; }
+.wedge.root .w-major, .wedge.root .w-minor { fill: #f6c98a; }
+
+.c-root { font-family: var(--font-display); font-weight: 700; font-size: 17px; fill: var(--ink-strong); }
+.c-pattern { font-size: 11px; fill: var(--hint); }
+.c-sig { font-size: 10px; fill: var(--muted); }
+
 /* ---- status line ---- */
 
 .status {
