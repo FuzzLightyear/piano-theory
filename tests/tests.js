@@ -1,5 +1,6 @@
 import { parseNote, noteName, pitchClass, isWhite, PC_NAMES } from '../js/theory.js';
 import { parsePatterns } from '../js/patterns.js';
+import { pcOf, positionOf, MAJOR_LABELS, MINOR_LABELS, SIGNATURES } from '../js/circle.js';
 
 const cases = [];
 const test = (name, fn) => cases.push({ name, fn });
@@ -116,6 +117,37 @@ test('data/patterns.txt parses with expected content', async () => {
   eq(p.byId.dim.semitones, [0, 3, 6]);
   eq(p.byId.sus4.semitones, [0, 5, 7]);
   eq(p.byId.min7.semitones, [0, 3, 7, 10]);
+});
+
+// ---- circle of fifths ----
+
+test('circle position math round-trips', () => {
+  for (let pc = 0; pc < 12; pc++) eq(pcOf(positionOf(pc)), pc, `pc ${pc}`);
+  eq(positionOf(0), 0, 'C at twelve o\'clock');
+  eq(positionOf(7), 1, 'G one step clockwise');
+  eq(positionOf(5), 11, 'F one step counter-clockwise');
+  eq(pcOf(6), 6, 'F♯ opposite C');
+});
+
+test('every major scale is a contiguous arc of seven wedges', () => {
+  const major = [0, 2, 4, 5, 7, 9, 11];
+  for (let root = 0; root < 12; root++) {
+    const pos = major.map(s => positionOf((root + s) % 12)).sort((a, b) => a - b);
+    const gaps = pos.map((p, i) => ((pos[(i + 1) % 7] - p) + 12) % 12).sort((a, b) => a - b);
+    eq(gaps, [1, 1, 1, 1, 1, 1, 6], `root ${root}`);
+  }
+});
+
+test('labels and key signatures line up', () => {
+  eq(MAJOR_LABELS.length, 12);
+  eq(MINOR_LABELS.length, 12);
+  eq(SIGNATURES.length, 12);
+  eq(MAJOR_LABELS[positionOf(2)], 'D');
+  eq(SIGNATURES[positionOf(2)], '2♯', 'D major has two sharps');
+  eq(SIGNATURES[positionOf(10)], '2♭', 'B♭ major has two flats');
+  eq(SIGNATURES[0], '♮');
+  eq(MINOR_LABELS[0], 'Am', 'relative minor of C');
+  eq(MINOR_LABELS[positionOf(7)], 'Em', 'relative minor of G');
 });
 
 // ---- runner ----
