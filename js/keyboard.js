@@ -38,8 +38,9 @@ export class Keyboard {
     this.keys = new Map();
   }
 
-  // config: { startMidi, keyCount, rootPc, semitones (may be empty), labelMode, view }
-  render({ startMidi, keyCount, rootPc, semitones, labelMode, view }) {
+  // config: { startMidi, keyCount, rootPc, semitones (may be empty), labelMode,
+  // view, maxWidth (optional cap, defaults to the full-stage cap) }
+  render({ startMidi, keyCount, rootPc, semitones, labelMode, view, maxWidth = MAX_WIDTH }) {
     const endMidi = startMidi + keyCount - 1;
     const highlighted = new Set(semitones.map(s => s % 12));
 
@@ -119,7 +120,7 @@ export class Keyboard {
 
     // camera: cinematic tilt in angled view, near-plan in overhead (6° keeps a
     // whisper of key thickness so the board still reads as an object)
-    const scale = Math.min(1, MAX_WIDTH / Math.max(boardWidth, 1));
+    const scale = Math.min(1, maxWidth / Math.max(boardWidth, 1));
     const tiltDeg = view === 'top' ? 6 : TILT;
     const shift = view === 'top' ? WHITE_DEPTH * scale * 0.02 : WHITE_DEPTH * scale * 0.24;
     this.rig.style.transform = `translateY(-${shift.toFixed(1)}px) scale(${scale.toFixed(4)}) rotateX(${tiltDeg}deg)`;
