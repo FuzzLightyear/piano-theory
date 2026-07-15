@@ -62,7 +62,10 @@ tuning — stronger in the bass, the way stiff piano strings actually behave —
 plus per-partial decay, a touch of detune for multi-string beating, and a
 band-passed noise burst for the hammer. Notes feed a shared compressor bus
 with a convolver reverb whose impulse is synthesized at startup (dry, room,
-and hall presets).
+and hall presets). An octave row shifts everything that sounds by up to two
+octaves either way — like the octave buttons on a hardware controller, it
+transposes the audio while the visual keyboard stays put, so you can view a
+narrow range and still reach the registers around it.
 
 ## Tests
 
