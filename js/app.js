@@ -26,6 +26,7 @@ const state = {
   sound: true,
   sustain: 1,
   reverb: 'room',
+  octave: 0, // audio-only transpose, like hardware octave buttons
   playing: false, // false | 'scale' | 'fifths'
 };
 
@@ -65,7 +66,9 @@ const currentSemitones = () => currentPattern()?.semitones ?? [];
 function press(midi) {
   if (!sounding.has(midi)) {
     sounding.add(midi);
-    if (state.sound) synth.note(midi, state.sustain);
+    // the octave shift transposes what sounds, never what the board shows
+    const audible = midi + 12 * state.octave;
+    if (state.sound && audible >= 9 && audible <= 119) synth.note(audible, state.sustain);
   }
   if (!pressed.has(midi)) {
     pressed.add(midi);
@@ -228,6 +231,7 @@ function syncControls() {
   for (const b of $('label-modes').children) mark(b, b.dataset.mode === state.labelMode);
   for (const b of $('views').children) { if (b.dataset.view) mark(b, b.dataset.view === state.view); }
   for (const b of $('reverbs').children) mark(b, b.dataset.reverb === state.reverb);
+  for (const b of $('octaves').children) mark(b, Number(b.dataset.octave) === state.octave);
   mark($('circle-toggle'), state.circle);
 
   const play = $('play');
@@ -406,6 +410,12 @@ function bindEvents() {
     if (!b) return;
     state.reverb = b.dataset.reverb;
     synth.setReverb(state.reverb);
+    syncControls();
+  });
+  $('octaves').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    state.octave = Number(b.dataset.octave);
     syncControls();
   });
 }
