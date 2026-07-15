@@ -539,6 +539,13 @@ button:focus-visible, select:focus-visible, input:focus-visible {
   transition: fill .15s, stroke .15s;
 }
 .wedge:hover path { fill: rgba(255, 255, 255, .07); stroke: rgba(255, 255, 255, .22); }
+/* Browsers draw their default focus ring as the group's axis-aligned bounding
+   box, which spills outside the circle (issue #13). Suppress it on every
+   focus path — clicked wedges show plain selection state, and keyboard focus
+   gets the wedge-shaped stroke below instead. Separate rules on purpose: a
+   selector list with :focus-visible would be dropped whole by engines that
+   don't know it, taking the :focus rule down with it. */
+.wedge:focus { outline: none; }
 .wedge:focus-visible { outline: none; }
 .wedge:focus-visible path { stroke: rgba(var(--scale-accent), .7); stroke-width: 1.5; }
 .wedge.member path { fill: rgba(var(--scale-accent), .14); stroke: rgba(var(--scale-accent), .4); }
