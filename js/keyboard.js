@@ -7,8 +7,12 @@ import { isWhite, pitchClass, PC_NAMES } from './theory.js';
 
 const WSLOT = 44;         // white key slot width
 const WHITE_DEPTH = 250;
-const MAX_WIDTH = 980;    // board is scaled down past this
+const MAX_WIDTH = 980;    // fallback cap when the app passes no measured width
 const TILT = 42;          // camera tilt in the angled view
+
+// When the board scales down, gems and note labels counter-scale so they stay
+// readable — capped so a root gem never outgrows a black key's width.
+export const labelBoost = scale => Math.min(1.4, Math.max(1, 0.7 / scale));
 
 function chassisPieces(bw) {
   const w = bw + 28;
@@ -118,12 +122,24 @@ export class Keyboard {
     this.board.style.height = `${WHITE_DEPTH + 60}px`;
     this.board.replaceChildren(frag);
 
-    // camera: cinematic tilt in angled view, near-plan in overhead (6° keeps a
-    // whisper of key thickness so the board still reads as an object)
-    const scale = Math.min(1, maxWidth / Math.max(boardWidth, 1));
-    const tiltDeg = view === 'top' ? 6 : TILT;
-    const shift = view === 'top' ? WHITE_DEPTH * scale * 0.02 : WHITE_DEPTH * scale * 0.24;
+    this.boardWidth = boardWidth;
+    this.view = view;
+    this.applyCamera(maxWidth);
+  }
+
+  // Camera and label sizing only — safe to call on resize without a rebuild.
+  // Cinematic tilt in the angled view; near-plan in overhead (6° keeps a
+  // whisper of key thickness so the board still reads as an object).
+  applyCamera(maxWidth) {
+    const scale = Math.min(1, maxWidth / Math.max(this.boardWidth, 1));
+    const tiltDeg = this.view === 'top' ? 6 : TILT;
+    const shift = this.view === 'top' ? WHITE_DEPTH * scale * 0.02 : WHITE_DEPTH * scale * 0.24;
     this.rig.style.transform = `translateY(-${shift.toFixed(1)}px) scale(${scale.toFixed(4)}) rotateX(${tiltDeg}deg)`;
+    this.board.style.setProperty('--label-boost', labelBoost(scale).toFixed(3));
+  }
+
+  rescale(maxWidth) {
+    if (this.boardWidth) this.applyCamera(maxWidth);
   }
 
   setPressed(midi, on) {

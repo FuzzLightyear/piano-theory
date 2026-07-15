@@ -163,6 +163,19 @@ function toggleFifths() {
 
 // ---- rendering ----
 
+// The board renders as large as the stage actually allows: measured content
+// width (the circle panel's space is CSS padding, so it comes out of the
+// measurement automatically), floored so tiny windows stay sane and capped
+// where the fixed-perspective camera starts to distort.
+function boardCap() {
+  const stage = document.querySelector('.stage');
+  const cs = getComputedStyle(stage);
+  // the tilted board's near edge renders ~5% wider than its scaled layout
+  // width, so leave that much headroom on top of a small gutter
+  const avail = (stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 16) * 0.94;
+  return Math.max(320, Math.min(avail, 1280));
+}
+
 function rebuild() {
   if (state.playing) stopPlayback(); else releaseAll();
   const semitones = currentSemitones();
@@ -173,7 +186,7 @@ function rebuild() {
     semitones,
     labelMode: state.labelMode,
     view: state.view,
-    maxWidth: state.circle ? 640 : undefined,
+    maxWidth: boardCap(),
   });
   const pat = currentPattern();
   let sig = null;
@@ -320,6 +333,12 @@ function bindEvents() {
   window.addEventListener('blur', () => {
     for (const midi of heldCodes.values()) release(midi);
     heldCodes.clear();
+  });
+
+  let resizeQueued = 0;
+  window.addEventListener('resize', () => {
+    cancelAnimationFrame(resizeQueued);
+    resizeQueued = requestAnimationFrame(() => keyboard.rescale(boardCap()));
   });
 
   $('presets').addEventListener('click', e => {

@@ -458,8 +458,8 @@ button:focus-visible, select:focus-visible, input:focus-visible {
   background: radial-gradient(circle at 32% 26%, rgba(255,255,255,.82) 0%, #37c8b2 30%, #0d6b5b 100%);
   border: 1px solid rgba(255,255,255,.62);
 }
-.white .f-gem { transform: translate(-50%, -50%) translateY(105px) translateZ(16.8px); }
-.black .f-gem { transform: translate(-50%, -50%) translateY(59px) translateZ(23.8px); }
+.white .f-gem { transform: translate(-50%, -50%) translateY(105px) translateZ(16.8px) scale(var(--label-boost, 1)); }
+.black .f-gem { transform: translate(-50%, -50%) translateY(59px) translateZ(23.8px) scale(var(--label-boost, 1)); }
 
 /* resting note labels: near-solid ink on ivory, bright off-white on black */
 .f-lbl {
@@ -474,12 +474,12 @@ button:focus-visible, select:focus-visible, input:focus-visible {
   pointer-events: none;
 }
 .white .f-lbl {
-  transform: translate(-50%, -50%) translateY(107px) translateZ(16.6px);
+  transform: translate(-50%, -50%) translateY(107px) translateZ(16.6px) scale(var(--label-boost, 1));
   color: rgba(28,26,22,.88);
   text-shadow: 0 1px 0 rgba(255,255,255,.45);
 }
 .black .f-lbl {
-  transform: translate(-50%, -50%) translateY(61px) translateZ(23.6px);
+  transform: translate(-50%, -50%) translateY(61px) translateZ(23.6px) scale(var(--label-boost, 1));
   color: rgba(249,247,242,.94);
   text-shadow: 0 1px 2px rgba(0,0,0,.6);
 }
