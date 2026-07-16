@@ -5,7 +5,7 @@
 import { MIDI_MIN, MIDI_MAX, PC_NAMES, parseNote, noteName, pitchClass } from './theory.js';
 import { parsePatterns } from './patterns.js';
 import { Keyboard } from './keyboard.js';
-import { Synth } from './audio.js';
+import { Synth, releaseTime } from './audio.js';
 import { CircleOfFifths, pcOf, positionOf, SIGNATURES } from './circle.js';
 
 const MIN_KEYS = 12;
@@ -40,8 +40,10 @@ const circle = new CircleOfFifths($('circle-svg'), {
     restyle();
   },
 });
-const pressed = new Set();  // keys shown as down
-const sounding = new Set(); // keys that already triggered audio while held
+const pressed = new Set();   // keys shown as down
+const sounding = new Map();  // held visual key -> the audible midi it struck,
+                             // so release damps what actually sounded even if
+                             // the octave shift moved underneath it
 let pointerActive = false;
 let timers = [];
 
@@ -66,9 +68,9 @@ const currentSemitones = () => currentPattern()?.semitones ?? [];
 
 function press(midi) {
   if (!sounding.has(midi)) {
-    sounding.add(midi);
     // the octave shift transposes what sounds, never what the board shows
     const audible = midi + 12 * state.octave;
+    sounding.set(midi, audible);
     if (state.sound && audible >= 9 && audible <= 119) synth.note(audible, state.sustain);
     keyboard.ripple(midi);
   }
@@ -79,13 +81,15 @@ function press(midi) {
 }
 
 function release(midi) {
-  sounding.delete(midi);
+  const audible = sounding.get(midi);
+  if (sounding.delete(midi)) synth.release(audible, state.sustain);
   if (pressed.delete(midi)) keyboard.setPressed(midi, false);
 }
 
 function releaseAll() {
   timers.forEach(clearTimeout);
   timers = [];
+  for (const audible of sounding.values()) synth.release(audible, state.sustain);
   sounding.clear();
   for (const midi of pressed) keyboard.setPressed(midi, false);
   pressed.clear();
@@ -237,7 +241,8 @@ function syncControls() {
   $('key-count-label').textContent = `${state.keyCount} keys`;
   $('root').value = String(state.rootPc);
   $('pattern').value = state.patternId;
-  $('sustain-label').textContent = `${(5.2 * state.sustain).toFixed(1)}s`;
+  const rel = releaseTime(state.sustain);
+  $('sustain-label').textContent = `${rel < 1 ? rel.toFixed(2) : rel.toFixed(1)}s`;
   $('sound').textContent = state.sound ? 'Sound on' : 'Muted';
   $('sound').classList.toggle('active', state.sound);
   $('sound').setAttribute('aria-pressed', state.sound);
