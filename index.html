@@ -11,8 +11,9 @@
 <script type="module" src="js/app.js"></script>
 </head>
 <body>
-<div class="app">
-  <div class="glow" aria-hidden="true"></div>
+<div class="app" data-theme="concert">
+  <div class="glow-a" aria-hidden="true"></div>
+  <div class="glow-b" aria-hidden="true"></div>
 
   <header class="panel-wrap">
     <div class="panel">
@@ -20,6 +21,15 @@
       <div class="group brand">
         <div class="brand-name">Piano Theory</div>
         <div class="brand-sub">Chords &amp; Scales</div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">Look</div>
+        <div class="row tight" id="themes">
+          <button type="button" class="chip warm" data-look="concert">Concert</button>
+          <button type="button" class="chip warm" data-look="noir">Noir</button>
+          <button type="button" class="chip warm" data-look="salon">Salon</button>
+        </div>
       </div>
 
       <div class="group">
@@ -75,7 +85,7 @@
       <div class="group last">
         <div class="group-title">Sound</div>
         <div class="row">
-          <button type="button" class="chip" id="sound">🔊 On</button>
+          <button type="button" class="chip" id="sound">Sound on</button>
         </div>
         <div class="row slider-row">
           <span class="tag">Sustain</span>

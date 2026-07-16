@@ -10,8 +10,11 @@ the octave.
 
 Built with plain HTML, CSS, and JavaScript. No frameworks, no build step, no
 npm, no runtime dependencies of any kind — the keyboard is real CSS 3D
-geometry rather than canvas or WebGL, and the piano sound is synthesized from
-scratch with the Web Audio API. The two fonts are subset and served from this
+geometry rather than canvas or WebGL, sized to your window so it renders at
+native resolution instead of scaling down, and the piano sound is synthesized
+from scratch with the Web Audio API. Three finishes ship with it — Concert,
+Noir, and Salon — switchable live from the Look picker; every material down
+to the felt strip behind the keys is themed. The two fonts are subset and served from this
 repo (SIL OFL, license texts in `fonts/`), so the app makes no third-party
 requests at all. Keeping the dependency surface at zero is a deliberate design
 constraint, not an accident of scope.
