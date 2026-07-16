@@ -2,6 +2,7 @@ import { parseNote, noteName, pitchClass, isWhite, PC_NAMES } from '../js/theory
 import { parsePatterns } from '../js/patterns.js';
 import { pcOf, positionOf, MAJOR_LABELS, MINOR_LABELS, SIGNATURES } from '../js/circle.js';
 import { boardGeometry, Keyboard } from '../js/keyboard.js';
+import { Synth, releaseTime } from '../js/audio.js';
 
 const cases = [];
 const test = (name, fn) => cases.push({ name, fn });
@@ -222,6 +223,34 @@ test('restyle swaps decorations only when their kind changes', () => {
   eq(board.querySelectorAll('.f-gem').length, 7, 'overhead always shows pattern gems');
   eq(board.querySelectorAll('.f-lbl').length, 18, 'overhead labels every other key');
   eq(board.className, 'board view-top', 'view class follows restyle');
+});
+
+// ---- synth damper ----
+
+test('release time tracks the sustain setting within bounds', () => {
+  eq(releaseTime(0.2), 0.06, 'floor at the slider minimum');
+  eq(releaseTime(1), 0.06 + 0.8 * 0.55);
+  if (!(releaseTime(3.5) < 2)) throw new Error('release stays under two seconds');
+});
+
+test('releasing a note damps it instead of ringing out', async () => {
+  const tailRms = async damp => {
+    const ctx = new OfflineAudioContext(1, 44100 * 2, 44100);
+    ctx.resume = () => Promise.resolve();
+    const s = new Synth(() => ctx);
+    s.setReverb('dry');
+    s.note(60, 1);
+    if (damp) s.release(60, 1);
+    const d = (await ctx.startRendering()).getChannelData(0);
+    const from = Math.floor(44100 * 1.3);
+    let sum = 0;
+    for (let i = from; i < d.length; i++) sum += d[i] * d[i];
+    return Math.sqrt(sum / (d.length - from));
+  };
+  const held = await tailRms(false);
+  const tapped = await tailRms(true);
+  if (!(held > 0.001)) throw new Error(`held note should still ring at 1.3s, rms ${held}`);
+  if (!(tapped < held * 0.1)) throw new Error(`tapped note should be damped: held ${held}, tapped ${tapped}`);
 });
 
 // ---- runner ----
