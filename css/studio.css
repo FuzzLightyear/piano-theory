@@ -466,25 +466,13 @@ button:focus-visible, select:focus-visible, input:focus-visible {
 /* transparent outline knocks out anti-aliasing seams between 3D faces */
 .face { position: absolute; left: 50%; top: 50%; outline: 1px solid transparent; }
 
-/* Press shading lives in per-face ::after overlays whose opacity toggles —
-   a composited fade, never a mid-transition re-rasterization of gradient
-   stacks. Face backgrounds themselves are static per state. */
-.f-top::after, .f-front::after, .f-left::after, .f-right::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  opacity: 0;
-  transition: opacity .09s ease;
-  pointer-events: none;
-}
-.white .f-top::after { background: var(--press-w); }
-.black .f-top::after { background: var(--press-b); }
-.white .f-front::after { background: var(--pressf-w); }
-.black .f-front::after { background: var(--pressf-b); }
-.white .f-left::after, .white .f-right::after { background: var(--presss-w); }
-.black .f-left::after, .black .f-right::after { background: var(--presss-b); }
-.key.down .face::after { opacity: 1; }
+/* Press shading is a background swap, applied instantly. It must NOT be an
+   opacity-animated overlay child: these faces live in a preserve-3d subtree,
+   and promoting one to a composited layer lets the browser mis-sort it
+   against its 3D siblings — a pressed black key loses its front face. Nor a
+   background transition: interpolating gradient stacks re-rasterizes the
+   face every frame. Instant is both safe and cheap — one repaint per press,
+   and a struck key snapping is truer than a fade anyway. */
 
 /* top faces */
 .white .f-top { width: var(--ww); height: var(--wd); transform: translate(-50%, -50%) translateZ(var(--wz)); border-radius: 1px 1px 6px 6px; }
@@ -495,12 +483,12 @@ button:focus-visible, select:focus-visible, input:focus-visible {
 .white.hl-root .f-top { background: var(--wash-wr), var(--top-w); box-shadow: var(--hlg-wr), var(--gloss-w); }
 .black.hl .f-top { background: var(--wash-bm), var(--top-b); box-shadow: var(--hlg-bm), var(--gloss-b); }
 .black.hl-root .f-top { background: var(--wash-br), var(--top-b); box-shadow: var(--hlg-br), var(--gloss-b); }
-.white.down .f-top { box-shadow: var(--pgd-w), var(--gloss-w); }
-.black.down .f-top { box-shadow: var(--pgd-b), var(--gloss-b); }
-.white.hl.down .f-top { box-shadow: var(--hlg-wm), var(--pg-m), var(--gloss-w); }
-.white.hl-root.down .f-top { box-shadow: var(--hlg-wr), var(--pg-r), var(--gloss-w); }
-.black.hl.down .f-top { box-shadow: var(--pg-m), var(--hlg-bm), var(--gloss-b); }
-.black.hl-root.down .f-top { box-shadow: var(--pg-r), var(--hlg-br), var(--gloss-b); }
+.white.down .f-top { background: var(--press-w), var(--top-w); box-shadow: var(--pgd-w), var(--gloss-w); }
+.black.down .f-top { background: var(--press-b), var(--top-b); box-shadow: var(--pgd-b), var(--gloss-b); }
+.white.hl.down .f-top { background: var(--press-w), var(--wash-wm), var(--top-w); box-shadow: var(--hlg-wm), var(--pg-m), var(--gloss-w); }
+.white.hl-root.down .f-top { background: var(--press-w), var(--wash-wr), var(--top-w); box-shadow: var(--hlg-wr), var(--pg-r), var(--gloss-w); }
+.black.hl.down .f-top { background: var(--press-b), var(--wash-bm), var(--top-b); box-shadow: var(--pg-m), var(--hlg-bm), var(--gloss-b); }
+.black.hl-root.down .f-top { background: var(--press-b), var(--wash-br), var(--top-b); box-shadow: var(--pg-r), var(--hlg-br), var(--gloss-b); }
 
 /* front faces (player-facing edge) */
 .white .f-front {
@@ -517,6 +505,9 @@ button:focus-visible, select:focus-visible, input:focus-visible {
   background: var(--front-b);
   box-shadow: inset 0 2px 0 rgba(255,255,255,.5), inset 0 -5px 8px rgba(0,0,0,.7), inset 3px 0 7px rgba(0,0,0,.55), inset -3px 0 7px rgba(0,0,0,.55);
 }
+.white.down .f-front { background: var(--pressf-w), var(--front-w); }
+.black.down .f-front { background: var(--pressf-b), var(--front-b); }
+
 /* side faces: left edge lit (light from upper-left), right edge shaded */
 .white .f-left, .white .f-right { width: var(--wh); height: var(--wd); }
 .black .f-left, .black .f-right { width: var(--bh); height: var(--bd); }
@@ -528,6 +519,11 @@ button:focus-visible, select:focus-visible, input:focus-visible {
 .white .f-right { background: var(--sider-w); box-shadow: inset 0 0 18px rgba(0,0,0,.3); }
 .black .f-left { background: var(--sidel-b); box-shadow: inset 0 2px 3px rgba(255,255,255,.25), inset 0 0 16px rgba(0,0,0,.4); }
 .black .f-right { background: var(--sider-b); box-shadow: inset 0 0 18px rgba(0,0,0,.6); }
+.white.down .f-left { background: var(--presss-w), var(--sidel-w); }
+.white.down .f-right { background: var(--presss-w), var(--sider-w); }
+.black.down .f-left { background: var(--presss-b), var(--sidel-b); }
+.black.down .f-right { background: var(--presss-b), var(--sider-b); }
+
 /* gem markers for pattern notes, near the front edge; the glossy highlight is
    kept tight in one corner so the glyph sits on saturated colour */
 .f-gem {
@@ -706,6 +702,5 @@ button:focus-visible, select:focus-visible, input:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .rig { transition: none; }
   .chip, .play { transition: none; }
-  .face::after { transition: none; }
   .ripple-ring { animation: none; }
 }
