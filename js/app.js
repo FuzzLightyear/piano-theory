@@ -11,7 +11,10 @@ import { CircleOfFifths, pcOf, positionOf, SIGNATURES } from './circle.js';
 const MIN_KEYS = 12;
 const MAX_KEYS = 88;
 const MAX_START = MIDI_MAX - MIN_KEYS + 1; // latest start that still fits a minimum board
-const STEP_MS = 300;
+const STEP_SEC = 0.3;      // scale playback step
+const FIFTHS_SEC = 0.36;   // fifths tour step
+const LOOKAHEAD = 0.25;    // how far ahead notes are queued on the audio clock
+const TICK_MS = 90;        // how often the queue is topped up
 
 const $ = id => document.getElementById(id);
 
@@ -74,7 +77,7 @@ const sounding = new Map();  // held visual key -> the audible midi it struck,
                              // so release damps what actually sounded even if
                              // the octave shift moved underneath it
 let pointerActive = false;
-let timers = [];
+let run = null; // active playback: { steps, stepSec, onStep, i, t0, visual, audibles, interval }
 
 // Musical typing: home row plays naturals, the row above plays sharps,
 // mirroring the layout piano apps have converged on. Physical key codes so
@@ -116,8 +119,6 @@ function release(midi) {
 }
 
 function releaseAll() {
-  timers.forEach(clearTimeout);
-  timers = [];
   for (const audible of sounding.values()) synth.release(audible, state.sustain);
   sounding.clear();
   for (const midi of pressed) keyboard.setPressed(midi, false);
@@ -144,7 +145,72 @@ function sequence() {
   return up.concat(down);
 }
 
+// Playback runs on the audio clock: notes are queued a lookahead ahead at
+// sample-accurate times, so timing survives a busy main thread. Visuals
+// follow from the tick — they tolerate jitter, audio doesn't.
+function startRun(steps, stepSec, onStep) {
+  run = {
+    steps,
+    stepSec,
+    onStep,
+    i: 0,
+    t0: synth.now() + 0.08,
+    visual: -1,
+    audibles: new Set(),
+    interval: 0,
+  };
+  run.interval = setInterval(tickRun, TICK_MS);
+  tickRun();
+}
+
+function tickRun() {
+  if (!run) return;
+  const now = synth.now();
+
+  while (run.i < run.steps.length && run.t0 + run.i * run.stepSec < now + LOOKAHEAD) {
+    const at = run.t0 + run.i * run.stepSec;
+    const audible = run.steps[run.i].midi + 12 * state.octave;
+    if (state.sound && audible >= 9 && audible <= 119) {
+      synth.note(audible, state.sustain, at);
+      synth.release(audible, state.sustain, at + run.stepSec);
+      run.audibles.add(audible);
+    }
+    run.i++;
+  }
+
+  const due = Math.floor((now - run.t0) / run.stepSec + 1e-3);
+  if (due > run.visual) {
+    if (run.visual >= 0 && run.visual < run.steps.length) {
+      const prev = run.steps[run.visual].midi;
+      if (pressed.delete(prev)) keyboard.setPressed(prev, false);
+    }
+    run.visual = due;
+    if (due >= run.steps.length) {
+      clearInterval(run.interval);
+      run = null;
+      circle.setActive(null);
+      state.playing = false;
+      syncControls();
+      return;
+    }
+    if (due >= 0) {
+      const step = run.steps[due];
+      pressed.add(step.midi);
+      keyboard.setPressed(step.midi, true);
+      keyboard.ripple(step.midi);
+      run.onStep?.(step);
+    }
+  }
+}
+
 function stopPlayback() {
+  if (run) {
+    clearInterval(run.interval);
+    // damp everything this run scheduled — including notes queued ahead on
+    // the audio clock that have not sounded yet
+    for (const audible of run.audibles) synth.release(audible, state.sustain);
+    run = null;
+  }
   releaseAll();
   circle.setActive(null);
   state.playing = false;
@@ -156,20 +222,8 @@ function togglePlay() {
   const seq = sequence();
   if (!seq.length) return;
   state.playing = 'scale';
+  startRun(seq.map(midi => ({ midi })), STEP_SEC, null);
   syncControls();
-  let i = 0;
-  const step = () => {
-    if (i > 0) release(seq[i - 1]);
-    if (i >= seq.length) {
-      state.playing = false;
-      syncControls();
-      return;
-    }
-    press(seq[i]);
-    i++;
-    timers.push(setTimeout(step, STEP_MS));
-  };
-  step();
 }
 
 // Walk the whole circle from the current root: twelve fifths land back home.
@@ -178,26 +232,13 @@ function togglePlay() {
 function toggleFifths() {
   if (state.playing) return stopPlayback();
   const startPos = positionOf(state.rootPc);
+  const steps = Array.from({ length: 13 }, (_, k) => {
+    const pos = (startPos + k) % 12;
+    return { midi: 48 + pcOf(pos), pos };
+  });
   state.playing = 'fifths';
+  startRun(steps, FIFTHS_SEC, step => circle.setActive(step.pos));
   syncControls();
-  let step = 0;
-  let prevMidi = null;
-  const tick = () => {
-    if (prevMidi !== null) release(prevMidi);
-    if (step > 12) {
-      circle.setActive(null);
-      state.playing = false;
-      syncControls();
-      return;
-    }
-    const pos = (startPos + step) % 12;
-    circle.setActive(pos);
-    prevMidi = 48 + pcOf(pos);
-    press(prevMidi);
-    step++;
-    timers.push(setTimeout(tick, 360));
-  };
-  tick();
 }
 
 // ---- rendering ----
