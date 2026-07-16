@@ -37,7 +37,7 @@ const synth = new Synth();
 const circle = new CircleOfFifths($('circle-svg'), {
   onSelect: pc => {
     state.rootPc = pc;
-    rebuild();
+    restyle();
   },
 });
 const pressed = new Set();  // keys shown as down
@@ -180,6 +180,19 @@ function stageMetrics() {
   };
 }
 
+function updateCircle(semitones) {
+  const pat = currentPattern();
+  let sig = null;
+  if (state.patternId === 'major') sig = SIGNATURES[positionOf(state.rootPc)];
+  else if (state.patternId === 'minor') sig = SIGNATURES[positionOf((state.rootPc + 3) % 12)];
+  circle.update({
+    rootPc: state.rootPc,
+    pcs: new Set(semitones.map(s => (state.rootPc + s) % 12)),
+    lines: [PC_NAMES[state.rootPc], pat ? pat.name : '', sig ?? ''],
+  });
+}
+
+// Full reconstruction — only when geometry changes (range, stage, panel).
 function rebuild() {
   if (state.playing) stopPlayback(); else releaseAll();
   const semitones = currentSemitones();
@@ -192,15 +205,22 @@ function rebuild() {
     view: state.view,
     ...stageMetrics(),
   });
-  const pat = currentPattern();
-  let sig = null;
-  if (state.patternId === 'major') sig = SIGNATURES[positionOf(state.rootPc)];
-  else if (state.patternId === 'minor') sig = SIGNATURES[positionOf((state.rootPc + 3) % 12)];
-  circle.update({
+  updateCircle(semitones);
+  syncControls();
+}
+
+// Re-decoration — highlight, label mode, and view changes reuse every key
+// element, so held keys survive and no DOM is rebuilt.
+function restyle() {
+  if (state.playing) stopPlayback();
+  const semitones = currentSemitones();
+  keyboard.restyle({
     rootPc: state.rootPc,
-    pcs: new Set(semitones.map(s => (state.rootPc + s) % 12)),
-    lines: [PC_NAMES[state.rootPc], pat ? pat.name : '', sig ?? ''],
+    semitones,
+    labelMode: state.labelMode,
+    view: state.view,
   });
+  updateCircle(semitones);
   syncControls();
 }
 
@@ -375,23 +395,23 @@ function bindEvents() {
   });
   $('root').addEventListener('change', e => {
     state.rootPc = Number(e.target.value);
-    rebuild();
+    restyle();
   });
   $('pattern').addEventListener('change', e => {
     state.patternId = e.target.value;
-    rebuild();
+    restyle();
   });
   $('label-modes').addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b) return;
     state.labelMode = b.dataset.mode;
-    rebuild();
+    restyle();
   });
   $('views').addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b || !b.dataset.view) return;
     state.view = b.dataset.view;
-    rebuild();
+    restyle();
   });
   $('circle-toggle').addEventListener('click', () => {
     state.circle = !state.circle;
