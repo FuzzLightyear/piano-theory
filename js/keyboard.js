@@ -1,15 +1,27 @@
-// 3D keyboard renderer. Rebuilds the board on configuration changes; press
-// feedback is a per-key class toggle handled against the DOM built here.
-// Material and press styling live in css/studio.css — this module lays out
-// geometry (published as CSS custom properties on the board) and assigns
-// state classes. Keys are sized to the measured stage rather than built at a
-// design size and scaled down, so faces and labels rasterize at native
-// resolution instead of blurring under a shrinking transform.
+// 3D keyboard renderer with two invalidation tiers: render() rebuilds the DOM
+// when geometry changes (range, stage size), restyle() re-decorates existing
+// keys when only the highlight, labels, or view change — the common case.
+// Press feedback stays a per-key class toggle. Material and press styling
+// live in css/studio.css — this module lays out geometry (published as CSS
+// custom properties on the board) and assigns state classes. Keys are sized
+// to the measured stage rather than built at a design size and scaled down,
+// so faces and labels rasterize at native resolution instead of blurring
+// under a shrinking transform.
 
 import { isWhite, pitchClass, PC_NAMES } from './theory.js';
 
 const TILT = 40;      // camera tilt in the angled view
 const TOP_TILT = 13;  // overhead keeps a slight tilt so key depth stays legible
+
+// Which decoration a key carries. Overhead view is for reading notes, so
+// every key gets labelled there: pattern notes keep their gems, the rest get
+// plain names. One function feeds both render() and restyle() so the two
+// paths can never disagree.
+function decoKindFor(hl, isRoot, pc, labelMode, top) {
+  if (hl && (labelMode !== 'off' || top)) return isRoot ? 'root' : 'member';
+  if (!hl && (top || labelMode === 'all' || (labelMode === 'c' && pc === 0))) return 'lbl';
+  return null;
+}
 
 // Derive all key dimensions from the space a single white-key slot gets.
 // Exported for tests.
@@ -68,8 +80,9 @@ export class Keyboard {
   constructor(rigEl, boardEl) {
     this.rig = rigEl;
     this.board = boardEl;
-    this.keys = new Map();
+    this.keys = new Map(); // midi -> { el, box, x, white, pc, label, decoKind, decoEl }
     this.geo = null;
+    this.view = 'angled';
     this.reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   }
 
@@ -122,17 +135,10 @@ export class Keyboard {
       const rel = (pc - rootPc + 12) % 12;
       const hl = highlighted.has(rel);
       const isRoot = hl && rel === 0;
-      const top = view === 'top';
-      // Overhead view is for reading notes, so every key gets labelled there:
-      // pattern notes keep their gems, the rest get plain names.
-      const showGem = hl && (labelMode !== 'off' || top);
-      const showLabel = top ? !hl : !hl && (labelMode === 'all' || (labelMode === 'c' && pc === 0));
-      const label = pc === 0 ? `C${Math.floor(k.midi / 12) - 1}` : PC_NAMES[pc];
 
       const key = document.createElement('div');
       key.className = 'key ' + (k.white ? 'white' : 'black') + (isRoot ? ' hl-root' : hl ? ' hl' : '');
       key.dataset.midi = k.midi;
-      key.dataset.x = k.x.toFixed(1);
       key.style.left = `${(k.x - (k.white ? g.ww : g.bw) / 2).toFixed(2)}px`;
 
       const box = document.createElement('div');
@@ -142,22 +148,24 @@ export class Keyboard {
         el.className = `face ${face}`;
         box.append(el);
       }
-      if (showGem) {
-        const gem = document.createElement('div');
-        gem.className = 'face f-gem ' + (isRoot ? 'root' : 'member');
-        gem.textContent = label;
-        box.append(gem);
-      } else if (showLabel) {
-        const lbl = document.createElement('div');
-        lbl.className = 'face f-lbl';
-        lbl.textContent = label;
-        box.append(lbl);
-      }
       key.append(box);
       frag.append(key);
-      this.keys.set(k.midi, key);
+
+      const entry = {
+        el: key,
+        box,
+        x: k.x,
+        white: k.white,
+        pc,
+        label: pc === 0 ? `C${Math.floor(k.midi / 12) - 1}` : PC_NAMES[pc],
+        decoKind: null,
+        decoEl: null,
+      };
+      this.applyDeco(entry, decoKindFor(hl, isRoot, pc, labelMode, view === 'top'));
+      this.keys.set(k.midi, entry);
     }
 
+    this.view = view;
     this.board.className = `board view-${view}`;
     const dims = this.board.style;
     dims.width = `${boardWidth}px`;
@@ -167,36 +175,78 @@ export class Keyboard {
       ['--bw', g.bw], ['--bd', g.bd], ['--bh', g.bh], ['--bz', g.bz],
     ]) dims.setProperty(name, `${value.toFixed(2)}px`);
     this.board.replaceChildren(frag);
+    this.applyCamera();
+  }
 
-    // camera: no scale() — the board is already built at presentation size
-    const tiltDeg = view === 'top' ? TOP_TILT : TILT;
-    const shift = view === 'top' ? g.wd * 0.05 : -g.wd * 0.26;
+  // Re-decorate existing keys for a new highlight/label/view configuration.
+  // Geometry is untouched, so every key element survives — pressed state
+  // included — and the DOM work is bounded by what actually changed.
+  restyle({ rootPc, semitones, labelMode, view }) {
+    if (!this.keys.size) return;
+    const highlighted = new Set(semitones.map(s => s % 12));
+    const top = view === 'top';
+    if (view !== this.view) {
+      this.view = view;
+      this.board.classList.remove('view-angled', 'view-top');
+      this.board.classList.add(`view-${view}`);
+      this.applyCamera();
+    }
+    for (const entry of this.keys.values()) {
+      const rel = (entry.pc - rootPc + 12) % 12;
+      const hl = highlighted.has(rel);
+      const isRoot = hl && rel === 0;
+      entry.el.classList.toggle('hl-root', isRoot);
+      entry.el.classList.toggle('hl', hl && !isRoot);
+      this.applyDeco(entry, decoKindFor(hl, isRoot, entry.pc, labelMode, top));
+    }
+  }
+
+  // swap a key's gem/label child only when its kind actually changed
+  applyDeco(entry, kind) {
+    if (entry.decoKind === kind) return;
+    entry.decoEl?.remove();
+    entry.decoEl = null;
+    entry.decoKind = kind;
+    if (!kind) return;
+    const el = document.createElement('div');
+    el.className = kind === 'lbl' ? 'face f-lbl' : `face f-gem ${kind}`;
+    el.textContent = entry.label;
+    entry.box.append(el);
+    entry.decoEl = el;
+  }
+
+  // camera: no scale() — the board is already built at presentation size
+  applyCamera() {
+    const g = this.geo;
+    const tiltDeg = this.view === 'top' ? TOP_TILT : TILT;
+    const shift = this.view === 'top' ? g.wd * 0.05 : -g.wd * 0.26;
     this.rig.style.transform = `translateY(${shift.toFixed(1)}px) rotateX(${tiltDeg}deg)`;
   }
 
   setPressed(midi, on) {
-    const key = this.keys.get(midi);
-    if (key) key.classList.toggle('down', !!on);
+    const entry = this.keys.get(midi);
+    if (entry) entry.el.classList.toggle('down', !!on);
   }
 
   clearPressed() {
-    for (const key of this.keys.values()) key.classList.remove('down');
+    for (const entry of this.keys.values()) entry.el.classList.remove('down');
   }
 
   // expanding ring at the struck key's front edge, coloured like its role
   ripple(midi) {
-    const key = this.keys.get(midi);
-    if (!key || !this.geo || this.reducedMotion.matches) return;
+    const entry = this.keys.get(midi);
+    if (!entry || !this.geo || this.reducedMotion.matches) return;
     const g = this.geo;
-    const white = key.classList.contains('white');
-    const kind = key.classList.contains('hl-root') ? 'root' : key.classList.contains('hl') ? 'member' : 'plain';
+    const { white } = entry;
+    const kind = entry.el.classList.contains('hl-root') ? 'root'
+      : entry.el.classList.contains('hl') ? 'member' : 'plain';
     const size = white ? g.slot * 1.9 : g.slot * 1.4;
     const y = white ? g.wd - 30 : g.bd - 22;
     const z = white ? g.wh + 2 : g.bz + g.bh / 2 + 2;
 
     const wrap = document.createElement('div');
     wrap.className = 'ripple';
-    wrap.style.cssText = `left:${key.dataset.x}px;top:${y.toFixed(1)}px;transform:translateZ(${z.toFixed(1)}px);`;
+    wrap.style.cssText = `left:${entry.x.toFixed(1)}px;top:${y.toFixed(1)}px;transform:translateZ(${z.toFixed(1)}px);`;
     const ring = document.createElement('div');
     ring.className = `ripple-ring ${kind}`;
     ring.style.cssText = `left:${(-size / 2).toFixed(1)}px;top:${(-size / 2).toFixed(1)}px;width:${size.toFixed(0)}px;height:${size.toFixed(0)}px;`;
