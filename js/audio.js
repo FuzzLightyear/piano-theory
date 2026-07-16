@@ -76,9 +76,15 @@ export class Synth {
     if (this.#wet) this.#wet.gain.setTargetAtTime(this.#wetLevel, this.#ctx.currentTime, 0.04);
   }
 
-  note(midi, sustain = 1) {
+  // the audio clock, for callers that schedule against it
+  now() {
+    return this.#ensure().currentTime;
+  }
+
+  // when: optional audio-clock time for sample-accurate scheduling
+  note(midi, sustain = 1, when = null) {
     const ctx = this.#ensure();
-    const t = ctx.currentTime;
+    const t = when ?? ctx.currentTime;
     const f0 = 440 * 2 ** ((midi - 69) / 12);
     // register runs 0 (lowest key) to 1 (highest) and drives everything
     // register-dependent below: ring time, brightness, inharmonicity
@@ -151,19 +157,27 @@ export class Synth {
     noise.start(t);
   }
 
-  // Damp every ringing strike of this note over the sustain-derived release.
-  // Oscillators keep their original scheduled stops — silent past the ramp,
-  // and stopping them twice would throw.
-  release(midi, sustain = 1) {
+  // Damp every ringing strike of this note over the sustain-derived release,
+  // now or at a scheduled time. Strikes stay registered until their longest
+  // partial ends, so a later release-at-now can still cancel a scheduled one
+  // (that is how Stop silences notes queued ahead on the audio clock); a
+  // strike already damped at or before `when` is left alone so re-releasing
+  // never resurrects it. Oscillators keep their original scheduled stops —
+  // silent past the ramp, and stopping them twice would throw.
+  release(midi, sustain = 1, when = null) {
     const list = this.#voices.get(midi);
     if (!list || !this.#ctx) return;
-    this.#voices.delete(midi);
-    const t = this.#ctx.currentTime;
+    const now = this.#ctx.currentTime;
+    const t = when ?? now;
     const rel = releaseTime(sustain);
     for (const voice of list) {
+      if (voice.releasedAt !== undefined && voice.releasedAt <= t) continue;
+      voice.releasedAt = t;
       const gain = voice.gain.gain;
       gain.cancelScheduledValues(t);
-      gain.setValueAtTime(1, t);
+      // a strike still in the future holds its full level at t; a live one
+      // ramps from wherever its damp already brought it
+      gain.setValueAtTime(t > now + 0.001 ? 1 : Math.max(gain.value, 0.0001), t);
       gain.exponentialRampToValueAtTime(0.0001, t + rel);
     }
   }
