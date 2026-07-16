@@ -54,9 +54,10 @@ function label(deg, r, cls, text) {
 }
 
 export class CircleOfFifths {
+  #wedges = [];
+  #caption;
+
   constructor(svg, { onSelect }) {
-    this.svg = svg;
-    this.wedges = [];
     for (let i = 0; i < 12; i++) {
       const mid = i * 30 - 90;
       const g = svgEl('g', {
@@ -79,30 +80,30 @@ export class CircleOfFifths {
           select();
         }
       });
-      this.wedges.push(g);
+      this.#wedges.push(g);
       svg.append(g);
     }
-    this.caption = [
+    this.#caption = [
       svgEl('text', { x: C, y: 150, class: 'c-root', 'text-anchor': 'middle' }),
       svgEl('text', { x: C, y: 168, class: 'c-pattern', 'text-anchor': 'middle' }),
       svgEl('text', { x: C, y: 184, class: 'c-sig', 'text-anchor': 'middle' }),
     ];
-    svg.append(...this.caption);
+    svg.append(...this.#caption);
   }
 
   // rootPc: pitch class of the root; pcs: Set of all highlighted pitch classes;
   // lines: up to three caption strings for the centre
   update({ rootPc, pcs, lines }) {
-    this.wedges.forEach((g, i) => {
+    this.#wedges.forEach((g, i) => {
       const pc = pcOf(i);
       g.classList.toggle('root', pc === rootPc);
       g.classList.toggle('member', pc !== rootPc && pcs.has(pc));
     });
-    this.caption.forEach((el, i) => { el.textContent = lines[i] ?? ''; });
+    this.#caption.forEach((el, i) => { el.textContent = lines[i] ?? ''; });
   }
 
   // transient marker for the fifths tour; null clears
   setActive(position) {
-    this.wedges.forEach((g, i) => g.classList.toggle('tour', i === position));
+    this.#wedges.forEach((g, i) => g.classList.toggle('tour', i === position));
   }
 }

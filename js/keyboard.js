@@ -23,6 +23,21 @@ function decoKindFor(hl, isRoot, pc, labelMode, top) {
   return null;
 }
 
+// Every key is stamped from one prototype subtree: a single native deep clone
+// per key instead of six element creations.
+const KEY_PROTO = (() => {
+  const key = document.createElement('div');
+  const box = document.createElement('div');
+  box.className = 'kbox';
+  for (const face of ['f-top', 'f-front', 'f-left', 'f-right']) {
+    const el = document.createElement('div');
+    el.className = `face ${face}`;
+    box.append(el);
+  }
+  key.append(box);
+  return key;
+})();
+
 // Derive all key dimensions from the space a single white-key slot gets.
 // Exported for tests.
 export function boardGeometry(stageWidth, stageHeight, whiteCount) {
@@ -77,13 +92,16 @@ function chassisPieces(g, bw) {
 }
 
 export class Keyboard {
+  // rig and board are injected, caller-owned elements; everything else is
+  // internal state no consumer may reach past the methods below
+  #keys = new Map(); // midi -> { el, box, x, white, pc, label, decoKind, decoEl }
+  #geo = null;
+  #view = 'angled';
+  #reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
   constructor(rigEl, boardEl) {
     this.rig = rigEl;
     this.board = boardEl;
-    this.keys = new Map(); // midi -> { el, box, x, white, pc, label, decoKind, decoEl }
-    this.geo = null;
-    this.view = 'angled';
-    this.reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   }
 
   // config: { startMidi, keyCount, rootPc, semitones (may be empty), labelMode,
@@ -94,7 +112,7 @@ export class Keyboard {
 
     let whites = 0;
     for (let m = startMidi; m <= endMidi; m++) if (isWhite(m)) whites++;
-    const g = this.geo = boardGeometry(stageWidth, stageHeight, whites);
+    const g = this.#geo = boardGeometry(stageWidth, stageHeight, whites);
 
     // white keys sit in fixed slots; black keys centre between their neighbours
     const whiteX = new Map();
@@ -129,26 +147,18 @@ export class Keyboard {
     strip.style.cssText = `left:-2px;top:-2px;width:${boardWidth + 4}px;transform:translateZ(${(g.wh / 2 + 1).toFixed(1)}px);`;
     frag.append(strip);
 
-    this.keys.clear();
+    this.#keys.clear();
     for (const k of list) {
       const pc = pitchClass(k.midi);
       const rel = (pc - rootPc + 12) % 12;
       const hl = highlighted.has(rel);
       const isRoot = hl && rel === 0;
 
-      const key = document.createElement('div');
+      const key = KEY_PROTO.cloneNode(true);
       key.className = 'key ' + (k.white ? 'white' : 'black') + (isRoot ? ' hl-root' : hl ? ' hl' : '');
       key.dataset.midi = k.midi;
       key.style.left = `${(k.x - (k.white ? g.ww : g.bw) / 2).toFixed(2)}px`;
-
-      const box = document.createElement('div');
-      box.className = 'kbox';
-      for (const face of ['f-top', 'f-front', 'f-left', 'f-right']) {
-        const el = document.createElement('div');
-        el.className = `face ${face}`;
-        box.append(el);
-      }
-      key.append(box);
+      const box = key.firstElementChild;
       frag.append(key);
 
       const entry = {
@@ -161,11 +171,11 @@ export class Keyboard {
         decoKind: null,
         decoEl: null,
       };
-      this.applyDeco(entry, decoKindFor(hl, isRoot, pc, labelMode, view === 'top'));
-      this.keys.set(k.midi, entry);
+      this.#applyDeco(entry, decoKindFor(hl, isRoot, pc, labelMode, view === 'top'));
+      this.#keys.set(k.midi, entry);
     }
 
-    this.view = view;
+    this.#view = view;
     this.board.className = `board view-${view}`;
     const dims = this.board.style;
     dims.width = `${boardWidth}px`;
@@ -175,34 +185,34 @@ export class Keyboard {
       ['--bw', g.bw], ['--bd', g.bd], ['--bh', g.bh], ['--bz', g.bz],
     ]) dims.setProperty(name, `${value.toFixed(2)}px`);
     this.board.replaceChildren(frag);
-    this.applyCamera();
+    this.#applyCamera();
   }
 
   // Re-decorate existing keys for a new highlight/label/view configuration.
   // Geometry is untouched, so every key element survives — pressed state
   // included — and the DOM work is bounded by what actually changed.
   restyle({ rootPc, semitones, labelMode, view }) {
-    if (!this.keys.size) return;
+    if (!this.#keys.size) return;
     const highlighted = new Set(semitones.map(s => s % 12));
     const top = view === 'top';
-    if (view !== this.view) {
-      this.view = view;
+    if (view !== this.#view) {
+      this.#view = view;
       this.board.classList.remove('view-angled', 'view-top');
       this.board.classList.add(`view-${view}`);
-      this.applyCamera();
+      this.#applyCamera();
     }
-    for (const entry of this.keys.values()) {
+    for (const entry of this.#keys.values()) {
       const rel = (entry.pc - rootPc + 12) % 12;
       const hl = highlighted.has(rel);
       const isRoot = hl && rel === 0;
       entry.el.classList.toggle('hl-root', isRoot);
       entry.el.classList.toggle('hl', hl && !isRoot);
-      this.applyDeco(entry, decoKindFor(hl, isRoot, entry.pc, labelMode, top));
+      this.#applyDeco(entry, decoKindFor(hl, isRoot, entry.pc, labelMode, top));
     }
   }
 
   // swap a key's gem/label child only when its kind actually changed
-  applyDeco(entry, kind) {
+  #applyDeco(entry, kind) {
     if (entry.decoKind === kind) return;
     entry.decoEl?.remove();
     entry.decoEl = null;
@@ -216,27 +226,27 @@ export class Keyboard {
   }
 
   // camera: no scale() — the board is already built at presentation size
-  applyCamera() {
-    const g = this.geo;
-    const tiltDeg = this.view === 'top' ? TOP_TILT : TILT;
-    const shift = this.view === 'top' ? g.wd * 0.05 : -g.wd * 0.26;
+  #applyCamera() {
+    const g = this.#geo;
+    const tiltDeg = this.#view === 'top' ? TOP_TILT : TILT;
+    const shift = this.#view === 'top' ? g.wd * 0.05 : -g.wd * 0.26;
     this.rig.style.transform = `translateY(${shift.toFixed(1)}px) rotateX(${tiltDeg}deg)`;
   }
 
   setPressed(midi, on) {
-    const entry = this.keys.get(midi);
+    const entry = this.#keys.get(midi);
     if (entry) entry.el.classList.toggle('down', !!on);
   }
 
   clearPressed() {
-    for (const entry of this.keys.values()) entry.el.classList.remove('down');
+    for (const entry of this.#keys.values()) entry.el.classList.remove('down');
   }
 
   // expanding ring at the struck key's front edge, coloured like its role
   ripple(midi) {
-    const entry = this.keys.get(midi);
-    if (!entry || !this.geo || this.reducedMotion.matches) return;
-    const g = this.geo;
+    const entry = this.#keys.get(midi);
+    if (!entry || !this.#geo || this.#reducedMotion.matches) return;
+    const g = this.#geo;
     const { white } = entry;
     const kind = entry.el.classList.contains('hl-root') ? 'root'
       : entry.el.classList.contains('hl') ? 'member' : 'plain';
