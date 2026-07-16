@@ -44,6 +44,13 @@ export class Synth {
       this.wet.gain.value = this.wetLevel;
       this.reverb.connect(this.wet);
       this.wet.connect(comp);
+
+      // one shared hammer-noise buffer: buffer sources are one-shot, buffers
+      // are not — regenerating this per strike was pure allocation churn
+      const dur = 0.05;
+      this.noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+      const d = this.noise.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 2;
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
     return this.ctx;
@@ -97,12 +104,8 @@ export class Synth {
     }
 
     // hammer thump: a short band-passed noise burst, woodier in the bass
-    const dur = 0.05;
-    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 2;
     const noise = ctx.createBufferSource();
-    noise.buffer = buf;
+    noise.buffer = this.noise;
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass';
     bp.frequency.value = Math.min(f0 * 4, 3800);
