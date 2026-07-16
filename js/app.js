@@ -15,6 +15,35 @@ const STEP_MS = 300;
 
 const $ = id => document.getElementById(id);
 
+// Everything syncControls touches on every control event, resolved once.
+// One-time wiring in bindEvents keeps its direct lookups.
+const els = {
+  startNote: $('start-note'),
+  endNote: $('end-note'),
+  keyCount: $('key-count'),
+  keyCountLabel: $('key-count-label'),
+  root: $('root'),
+  pattern: $('pattern'),
+  sustainLabel: $('sustain-label'),
+  sound: $('sound'),
+  labelModes: $('label-modes'),
+  views: $('views'),
+  reverbs: $('reverbs'),
+  octaves: $('octaves'),
+  themes: $('themes'),
+  circleToggle: $('circle-toggle'),
+  play: $('play'),
+  playFifths: $('play-fifths'),
+  status: $('status'),
+};
+
+// preset buttons with their targets parsed once, not per sync
+const presetTargets = [...$('presets').children].map(b => ({
+  el: b,
+  midi: parseNote(b.dataset.start),
+  count: Number(b.dataset.count),
+}));
+
 const state = {
   startMidi: parseNote('C2'),
   keyCount: 61,
@@ -108,8 +137,9 @@ function sequence() {
   if (root === null) return [];
   const up = semis.filter(s => root + s <= end).map(s => root + s);
   // classic scales run up to the octave; patterns that already reach past it
-  // (9ths and beyond) just arpeggiate their own degrees
-  if (root + 12 <= end && Math.max(...semis) < 12) up.push(root + 12);
+  // (9ths and beyond) just arpeggiate their own degrees. The parser guarantees
+  // strictly ascending semitones, so the last one is the largest.
+  if (root + 12 <= end && semis[semis.length - 1] < 12) up.push(root + 12);
   const down = up.slice(0, -1).reverse();
   return up.concat(down);
 }
@@ -196,6 +226,26 @@ function updateCircle(semitones) {
   });
 }
 
+// Collapse event bursts (slider drags, resize streams) into one call per
+// frame. The timer is a backstop for contexts where animation frames are
+// throttled or suspended; whichever fires first wins and cancels the other.
+function coalesce(fn) {
+  let frame = 0;
+  let timer = 0;
+  const run = () => {
+    cancelAnimationFrame(frame);
+    clearTimeout(timer);
+    frame = timer = 0;
+    fn();
+  };
+  return () => {
+    cancelAnimationFrame(frame);
+    clearTimeout(timer);
+    frame = requestAnimationFrame(run);
+    timer = setTimeout(run, 50);
+  };
+}
+
 // Full reconstruction — only when geometry changes (range, stage, panel).
 function rebuild() {
   if (state.playing) stopPlayback(); else releaseAll();
@@ -212,6 +262,8 @@ function rebuild() {
   updateCircle(semitones);
   syncControls();
 }
+
+const queueRebuild = coalesce(rebuild);
 
 // Re-decoration — highlight, label mode, and view changes reuse every key
 // element, so held keys survive and no DOM is rebuilt.
@@ -235,42 +287,42 @@ function syncCirclePanel() {
 
 function syncControls() {
   const endMidi = state.startMidi + state.keyCount - 1;
-  $('start-note').value = noteName(state.startMidi);
-  $('end-note').value = noteName(endMidi);
-  $('key-count').value = state.keyCount;
-  $('key-count-label').textContent = `${state.keyCount} keys`;
-  $('root').value = String(state.rootPc);
-  $('pattern').value = state.patternId;
+  els.startNote.value = noteName(state.startMidi);
+  els.endNote.value = noteName(endMidi);
+  els.keyCount.value = state.keyCount;
+  els.keyCountLabel.textContent = `${state.keyCount} keys`;
+  els.root.value = String(state.rootPc);
+  els.pattern.value = state.patternId;
   const rel = releaseTime(state.sustain);
-  $('sustain-label').textContent = `${rel < 1 ? rel.toFixed(2) : rel.toFixed(1)}s`;
-  $('sound').textContent = state.sound ? 'Sound on' : 'Muted';
-  $('sound').classList.toggle('active', state.sound);
-  $('sound').setAttribute('aria-pressed', state.sound);
+  els.sustainLabel.textContent = `${rel < 1 ? rel.toFixed(2) : rel.toFixed(1)}s`;
+  els.sound.textContent = state.sound ? 'Sound on' : 'Muted';
+  els.sound.classList.toggle('active', state.sound);
+  els.sound.setAttribute('aria-pressed', state.sound);
 
   const mark = (b, active) => {
     b.classList.toggle('active', active);
     b.setAttribute('aria-pressed', active);
   };
-  for (const b of $('presets').children) {
-    mark(b, parseNote(b.dataset.start) === state.startMidi && Number(b.dataset.count) === state.keyCount);
-  }
-  for (const b of $('label-modes').children) mark(b, b.dataset.mode === state.labelMode);
-  for (const b of $('views').children) { if (b.dataset.view) mark(b, b.dataset.view === state.view); }
-  for (const b of $('reverbs').children) mark(b, b.dataset.reverb === state.reverb);
-  for (const b of $('octaves').children) mark(b, Number(b.dataset.octave) === state.octave);
-  for (const b of $('themes').children) mark(b, b.dataset.look === state.theme);
-  mark($('circle-toggle'), state.circle);
+  for (const p of presetTargets) mark(p.el, p.midi === state.startMidi && p.count === state.keyCount);
+  for (const b of els.labelModes.children) mark(b, b.dataset.mode === state.labelMode);
+  for (const b of els.views.children) { if (b.dataset.view) mark(b, b.dataset.view === state.view); }
+  for (const b of els.reverbs.children) mark(b, b.dataset.reverb === state.reverb);
+  for (const b of els.octaves.children) mark(b, Number(b.dataset.octave) === state.octave);
+  for (const b of els.themes.children) mark(b, b.dataset.look === state.theme);
+  mark(els.circleToggle, state.circle);
 
-  const play = $('play');
-  play.disabled = sequence().length === 0;
-  play.textContent = state.playing === 'scale' ? '■ Stop' : '▶ Play';
-  play.classList.toggle('on', state.playing === 'scale');
-  $('play-fifths').textContent = state.playing === 'fifths' ? '■ Stop' : '▶ Fifths';
-  $('play-fifths').classList.toggle('active', state.playing === 'fifths');
+  // O(1) stand-in for sequence().length: the board never has fewer than
+  // MIN_KEYS = 12 keys, so every pitch class is always present, a root always
+  // exists, and any non-empty pattern yields a sequence.
+  els.play.disabled = currentSemitones().length === 0;
+  els.play.textContent = state.playing === 'scale' ? '■ Stop' : '▶ Play';
+  els.play.classList.toggle('on', state.playing === 'scale');
+  els.playFifths.textContent = state.playing === 'fifths' ? '■ Stop' : '▶ Fifths';
+  els.playFifths.classList.toggle('active', state.playing === 'fifths');
 
   const base = 'Click keys or type A–L to play · Z/X shifts octave · drag for glissando';
   const pat = currentPattern();
-  $('status').textContent = pat ? `${base} · ${PC_NAMES[state.rootPc]} ${pat.name}` : base;
+  els.status.textContent = pat ? `${base} · ${PC_NAMES[state.rootPc]} ${pat.name}` : base;
 }
 
 // ---- control setup ----
@@ -367,11 +419,7 @@ function bindEvents() {
   });
 
   // geometry depends on the measured stage, so a resize is a rebuild
-  let resizeQueued = 0;
-  window.addEventListener('resize', () => {
-    cancelAnimationFrame(resizeQueued);
-    resizeQueued = requestAnimationFrame(rebuild);
-  });
+  window.addEventListener('resize', queueRebuild);
 
   $('presets').addEventListener('click', e => {
     const b = e.target.closest('button');
@@ -396,7 +444,7 @@ function bindEvents() {
   });
   $('key-count').addEventListener('input', e => {
     state.keyCount = clampKeys(Number(e.target.value), state.startMidi);
-    rebuild();
+    queueRebuild();
   });
   $('root').addEventListener('change', e => {
     state.rootPc = Number(e.target.value);
