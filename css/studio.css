@@ -189,10 +189,11 @@ body {
   inset: 0;
   pointer-events: none;
 }
-.glow-a { background: var(--glow-a-bg); animation: glow-a 16s ease-in-out infinite alternate; }
-.glow-b { background: var(--glow-b-bg); animation: glow-b 23s ease-in-out infinite alternate; }
-@keyframes glow-a { from { opacity: .55; } to { opacity: 1; } }
-@keyframes glow-b { from { opacity: .9; } to { opacity: .35; } }
+/* Static on purpose: these sit behind two backdrop-filter blurs, and
+   animating them dirties the blur input every frame — the blurs re-render
+   continuously and the whole app pays for it at input time. */
+.glow-a { background: var(--glow-a-bg); opacity: .8; }
+.glow-b { background: var(--glow-b-bg); opacity: .6; }
 
 /* ---- control panel ---- */
 
@@ -465,8 +466,27 @@ button:focus-visible, select:focus-visible, input:focus-visible {
 /* transparent outline knocks out anti-aliasing seams between 3D faces */
 .face { position: absolute; left: 50%; top: 50%; outline: 1px solid transparent; }
 
+/* Press shading lives in per-face ::after overlays whose opacity toggles —
+   a composited fade, never a mid-transition re-rasterization of gradient
+   stacks. Face backgrounds themselves are static per state. */
+.f-top::after, .f-front::after, .f-left::after, .f-right::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity .09s ease;
+  pointer-events: none;
+}
+.white .f-top::after { background: var(--press-w); }
+.black .f-top::after { background: var(--press-b); }
+.white .f-front::after { background: var(--pressf-w); }
+.black .f-front::after { background: var(--pressf-b); }
+.white .f-left::after, .white .f-right::after { background: var(--presss-w); }
+.black .f-left::after, .black .f-right::after { background: var(--presss-b); }
+.key.down .face::after { opacity: 1; }
+
 /* top faces */
-.f-top { transition: background .08s ease; }
 .white .f-top { width: var(--ww); height: var(--wd); transform: translate(-50%, -50%) translateZ(var(--wz)); border-radius: 1px 1px 6px 6px; }
 .black .f-top { width: var(--bw); height: var(--bd); transform: translate(-50%, -50%) translateZ(calc(var(--bh) / 2)); border-radius: 1px 1px 4px 4px; }
 .white .f-top { background: var(--top-w); box-shadow: var(--gloss-w); }
@@ -475,15 +495,14 @@ button:focus-visible, select:focus-visible, input:focus-visible {
 .white.hl-root .f-top { background: var(--wash-wr), var(--top-w); box-shadow: var(--hlg-wr), var(--gloss-w); }
 .black.hl .f-top { background: var(--wash-bm), var(--top-b); box-shadow: var(--hlg-bm), var(--gloss-b); }
 .black.hl-root .f-top { background: var(--wash-br), var(--top-b); box-shadow: var(--hlg-br), var(--gloss-b); }
-.white.down .f-top { background: var(--press-w), var(--top-w); box-shadow: var(--pgd-w), var(--gloss-w); }
-.black.down .f-top { background: var(--press-b), var(--top-b); box-shadow: var(--pgd-b), var(--gloss-b); }
-.white.hl.down .f-top { background: var(--press-w), var(--wash-wm), var(--top-w); box-shadow: var(--hlg-wm), var(--pg-m), var(--gloss-w); }
-.white.hl-root.down .f-top { background: var(--press-w), var(--wash-wr), var(--top-w); box-shadow: var(--hlg-wr), var(--pg-r), var(--gloss-w); }
-.black.hl.down .f-top { background: var(--press-b), var(--wash-bm), var(--top-b); box-shadow: var(--pg-m), var(--hlg-bm), var(--gloss-b); }
-.black.hl-root.down .f-top { background: var(--press-b), var(--wash-br), var(--top-b); box-shadow: var(--pg-r), var(--hlg-br), var(--gloss-b); }
+.white.down .f-top { box-shadow: var(--pgd-w), var(--gloss-w); }
+.black.down .f-top { box-shadow: var(--pgd-b), var(--gloss-b); }
+.white.hl.down .f-top { box-shadow: var(--hlg-wm), var(--pg-m), var(--gloss-w); }
+.white.hl-root.down .f-top { box-shadow: var(--hlg-wr), var(--pg-r), var(--gloss-w); }
+.black.hl.down .f-top { box-shadow: var(--pg-m), var(--hlg-bm), var(--gloss-b); }
+.black.hl-root.down .f-top { box-shadow: var(--pg-r), var(--hlg-br), var(--gloss-b); }
 
 /* front faces (player-facing edge) */
-.f-front { transition: background .09s ease; }
 .white .f-front {
   width: var(--ww); height: var(--wh);
   transform: translate(-50%, -50%) rotateX(-90deg) translateZ(calc(var(--wd) / 2));
@@ -498,11 +517,7 @@ button:focus-visible, select:focus-visible, input:focus-visible {
   background: var(--front-b);
   box-shadow: inset 0 2px 0 rgba(255,255,255,.5), inset 0 -5px 8px rgba(0,0,0,.7), inset 3px 0 7px rgba(0,0,0,.55), inset -3px 0 7px rgba(0,0,0,.55);
 }
-.white.down .f-front { background: var(--pressf-w), var(--front-w); }
-.black.down .f-front { background: var(--pressf-b), var(--front-b); }
-
 /* side faces: left edge lit (light from upper-left), right edge shaded */
-.f-left, .f-right { transition: background .1s ease; }
 .white .f-left, .white .f-right { width: var(--wh); height: var(--wd); }
 .black .f-left, .black .f-right { width: var(--bh); height: var(--bd); }
 .white .f-left { transform: translate(-50%, -50%) rotateY(-90deg) translateZ(calc(var(--ww) / 2)); }
@@ -513,11 +528,6 @@ button:focus-visible, select:focus-visible, input:focus-visible {
 .white .f-right { background: var(--sider-w); box-shadow: inset 0 0 18px rgba(0,0,0,.3); }
 .black .f-left { background: var(--sidel-b); box-shadow: inset 0 2px 3px rgba(255,255,255,.25), inset 0 0 16px rgba(0,0,0,.4); }
 .black .f-right { background: var(--sider-b); box-shadow: inset 0 0 18px rgba(0,0,0,.6); }
-.white.down .f-left { background: var(--presss-w), var(--sidel-w); }
-.white.down .f-right { background: var(--presss-w), var(--sider-w); }
-.black.down .f-left { background: var(--presss-b), var(--sidel-b); }
-.black.down .f-right { background: var(--presss-b), var(--sider-b); }
-
 /* gem markers for pattern notes, near the front edge; the glossy highlight is
    kept tight in one corner so the glyph sits on saturated colour */
 .f-gem {
@@ -696,6 +706,6 @@ button:focus-visible, select:focus-visible, input:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .rig { transition: none; }
   .chip, .play { transition: none; }
-  .glow-a, .glow-b { animation: none; }
+  .face::after { transition: none; }
   .ripple-ring { animation: none; }
 }
