@@ -23,6 +23,21 @@ function decoKindFor(hl, isRoot, pc, labelMode, top) {
   return null;
 }
 
+// Every key is stamped from one prototype subtree: a single native deep clone
+// per key instead of six element creations.
+const KEY_PROTO = (() => {
+  const key = document.createElement('div');
+  const box = document.createElement('div');
+  box.className = 'kbox';
+  for (const face of ['f-top', 'f-front', 'f-left', 'f-right']) {
+    const el = document.createElement('div');
+    el.className = `face ${face}`;
+    box.append(el);
+  }
+  key.append(box);
+  return key;
+})();
+
 // Derive all key dimensions from the space a single white-key slot gets.
 // Exported for tests.
 export function boardGeometry(stageWidth, stageHeight, whiteCount) {
@@ -136,19 +151,11 @@ export class Keyboard {
       const hl = highlighted.has(rel);
       const isRoot = hl && rel === 0;
 
-      const key = document.createElement('div');
+      const key = KEY_PROTO.cloneNode(true);
       key.className = 'key ' + (k.white ? 'white' : 'black') + (isRoot ? ' hl-root' : hl ? ' hl' : '');
       key.dataset.midi = k.midi;
       key.style.left = `${(k.x - (k.white ? g.ww : g.bw) / 2).toFixed(2)}px`;
-
-      const box = document.createElement('div');
-      box.className = 'kbox';
-      for (const face of ['f-top', 'f-front', 'f-left', 'f-right']) {
-        const el = document.createElement('div');
-        el.className = `face ${face}`;
-        box.append(el);
-      }
-      key.append(box);
+      const box = key.firstElementChild;
       frag.append(key);
 
       const entry = {
