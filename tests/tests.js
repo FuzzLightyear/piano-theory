@@ -1,7 +1,7 @@
 import { parseNote, noteName, pitchClass, isWhite, PC_NAMES } from '../js/theory.js';
 import { parsePatterns } from '../js/patterns.js';
 import { pcOf, positionOf, MAJOR_LABELS, MINOR_LABELS, SIGNATURES } from '../js/circle.js';
-import { boardGeometry } from '../js/keyboard.js';
+import { boardGeometry, Keyboard } from '../js/keyboard.js';
 
 const cases = [];
 const test = (name, fn) => cases.push({ name, fn });
@@ -180,6 +180,48 @@ test('derived dimensions keep piano proportions', () => {
   if (!(g.bd < g.wd)) throw new Error('black key must be shorter than white');
   if (!((g.bz + g.bh / 2) > g.wh)) throw new Error('black key top must sit above the white tops');
   if (!Object.isFrozen(g)) throw new Error('geometry must be frozen');
+});
+
+// ---- keyboard restyle ----
+
+function mountedBoard() {
+  const kb = new Keyboard(document.createElement('div'), document.createElement('div'));
+  kb.render({
+    startMidi: 48, keyCount: 25, rootPc: 0, semitones: [0, 2, 4, 5, 7, 9, 11],
+    labelMode: 'pattern', view: 'angled', stageWidth: 900, stageHeight: 600,
+  });
+  return kb;
+}
+
+test('restyle reuses every key element instead of rebuilding', () => {
+  const kb = mountedBoard();
+  const board = kb.board;
+  const before = [...board.querySelectorAll('.key')];
+  eq(before.length, 25);
+  kb.setPressed(57, true);
+  kb.restyle({ rootPc: 9, semitones: [0, 3, 7, 10], labelMode: 'pattern', view: 'angled' });
+  const after = [...board.querySelectorAll('.key')];
+  if (!before.every((el, i) => el === after[i])) throw new Error('key elements were rebuilt');
+  eq(board.querySelectorAll('.key.hl-root').length, 2, 'A keys are roots on a C3-C5 board');
+  eq(board.querySelectorAll('.key.hl').length, 7, 'C/E/G members across the range');
+  eq(board.querySelectorAll('.f-gem').length, 9, 'one gem per pattern note');
+  if (!board.querySelector('.key[data-midi="57"]').classList.contains('down')) {
+    throw new Error('pressed key must survive a restyle');
+  }
+});
+
+test('restyle swaps decorations only when their kind changes', () => {
+  const kb = mountedBoard();
+  const board = kb.board;
+  const keptGem = board.querySelector('.key[data-midi="48"] .f-gem');
+  kb.restyle({ rootPc: 0, semitones: [0, 4, 7], labelMode: 'pattern', view: 'angled' });
+  eq(board.querySelector('.key[data-midi="48"] .f-gem') === keptGem, true, 'unchanged gem is the same node');
+  kb.restyle({ rootPc: 0, semitones: [0, 4, 7], labelMode: 'off', view: 'angled' });
+  eq(board.querySelectorAll('.f-gem, .f-lbl').length, 0, 'labels off strips decorations');
+  kb.restyle({ rootPc: 0, semitones: [0, 4, 7], labelMode: 'off', view: 'top' });
+  eq(board.querySelectorAll('.f-gem').length, 7, 'overhead always shows pattern gems');
+  eq(board.querySelectorAll('.f-lbl').length, 18, 'overhead labels every other key');
+  eq(board.className, 'board view-top', 'view class follows restyle');
 });
 
 // ---- runner ----
