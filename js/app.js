@@ -22,6 +22,7 @@ const state = {
   patternId: 'major',
   labelMode: 'pattern',
   view: 'angled',
+  theme: 'concert',
   circle: true,
   sound: true,
   sustain: 1,
@@ -69,6 +70,7 @@ function press(midi) {
     // the octave shift transposes what sounds, never what the board shows
     const audible = midi + 12 * state.octave;
     if (state.sound && audible >= 9 && audible <= 119) synth.note(audible, state.sustain);
+    keyboard.ripple(midi);
   }
   if (!pressed.has(midi)) {
     pressed.add(midi);
@@ -166,17 +168,16 @@ function toggleFifths() {
 
 // ---- rendering ----
 
-// The board renders as large as the stage actually allows: measured content
-// width (the circle panel's space is CSS padding, so it comes out of the
-// measurement automatically), floored so tiny windows stay sane and capped
-// where the fixed-perspective camera starts to distort.
-function boardCap() {
+// Keys are sized from the stage that actually exists (the circle panel's
+// space is CSS padding, so it comes out of the measurement automatically);
+// the keyboard renders at native pixel size rather than scaling down.
+function stageMetrics() {
   const stage = document.querySelector('.stage');
   const cs = getComputedStyle(stage);
-  // the tilted board's near edge renders ~5% wider than its scaled layout
-  // width, so leave that much headroom on top of a small gutter
-  const avail = (stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 16) * 0.94;
-  return Math.max(320, Math.min(avail, 1280));
+  return {
+    stageWidth: stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+    stageHeight: stage.clientHeight,
+  };
 }
 
 function rebuild() {
@@ -189,7 +190,7 @@ function rebuild() {
     semitones,
     labelMode: state.labelMode,
     view: state.view,
-    maxWidth: boardCap(),
+    ...stageMetrics(),
   });
   const pat = currentPattern();
   let sig = null;
@@ -217,7 +218,7 @@ function syncControls() {
   $('root').value = String(state.rootPc);
   $('pattern').value = state.patternId;
   $('sustain-label').textContent = `${(5.2 * state.sustain).toFixed(1)}s`;
-  $('sound').textContent = state.sound ? '🔊 On' : '🔇 Off';
+  $('sound').textContent = state.sound ? 'Sound on' : 'Muted';
   $('sound').classList.toggle('active', state.sound);
   $('sound').setAttribute('aria-pressed', state.sound);
 
@@ -232,6 +233,7 @@ function syncControls() {
   for (const b of $('views').children) { if (b.dataset.view) mark(b, b.dataset.view === state.view); }
   for (const b of $('reverbs').children) mark(b, b.dataset.reverb === state.reverb);
   for (const b of $('octaves').children) mark(b, Number(b.dataset.octave) === state.octave);
+  for (const b of $('themes').children) mark(b, b.dataset.look === state.theme);
   mark($('circle-toggle'), state.circle);
 
   const play = $('play');
@@ -339,10 +341,11 @@ function bindEvents() {
     heldCodes.clear();
   });
 
+  // geometry depends on the measured stage, so a resize is a rebuild
   let resizeQueued = 0;
   window.addEventListener('resize', () => {
     cancelAnimationFrame(resizeQueued);
-    resizeQueued = requestAnimationFrame(() => keyboard.rescale(boardCap()));
+    resizeQueued = requestAnimationFrame(rebuild);
   });
 
   $('presets').addEventListener('click', e => {
@@ -394,6 +397,14 @@ function bindEvents() {
     state.circle = !state.circle;
     syncCirclePanel();
     rebuild();
+  });
+  $('themes').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    state.theme = b.dataset.look;
+    // themes are pure custom-property swaps — no rebuild needed
+    document.querySelector('.app').dataset.theme = state.theme;
+    syncControls();
   });
   $('play-fifths').addEventListener('click', toggleFifths);
   $('play').addEventListener('click', togglePlay);

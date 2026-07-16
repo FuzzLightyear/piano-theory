@@ -1,7 +1,7 @@
 import { parseNote, noteName, pitchClass, isWhite, PC_NAMES } from '../js/theory.js';
 import { parsePatterns } from '../js/patterns.js';
 import { pcOf, positionOf, MAJOR_LABELS, MINOR_LABELS, SIGNATURES } from '../js/circle.js';
-import { labelBoost } from '../js/keyboard.js';
+import { boardGeometry } from '../js/keyboard.js';
 
 const cases = [];
 const test = (name, fn) => cases.push({ name, fn });
@@ -151,14 +151,28 @@ test('labels and key signatures line up', () => {
   eq(MINOR_LABELS[positionOf(7)], 'Em', 'relative minor of G');
 });
 
-// ---- keyboard label compensation ----
+// ---- keyboard geometry ----
 
-test('labels counter-scale only when the board is small, within limits', () => {
-  eq(labelBoost(1), 1, 'full-size board');
-  eq(labelBoost(0.8), 1, 'no boost above the threshold');
-  eq(labelBoost(0.7), 1, 'threshold itself');
-  eq(labelBoost(0.5), 1.4, 'boost grows as the board shrinks');
-  eq(labelBoost(0.35), 1.4, 'hard cap so gems never outgrow a black key');
+test('key slots clamp to sane bounds at extreme stages', () => {
+  eq(boardGeometry(10000, 800, 20).slot, 47, 'wide stage, few keys: slot capped');
+  eq(boardGeometry(300, 600, 52).slot, 21, 'narrow stage, many keys: slot floored');
+});
+
+test('key depth follows the stage but stays within limits', () => {
+  const shallow = boardGeometry(1200, 100, 36);
+  eq(shallow.wd, 150, 'short stage floors the key depth');
+  const deep = boardGeometry(1200, 2000, 20);
+  eq(deep.wd, deep.slot * 5.7, 'tall stage: depth tracks the slot, not the stage');
+  if (!(deep.wd <= 272)) throw new Error('depth must stay under the cap');
+});
+
+test('derived dimensions keep piano proportions', () => {
+  const g = boardGeometry(1200, 620, 36);
+  if (!(g.ww < g.slot)) throw new Error('white key must be narrower than its slot');
+  if (!(g.bw < g.ww)) throw new Error('black key must be narrower than white');
+  if (!(g.bd < g.wd)) throw new Error('black key must be shorter than white');
+  if (!((g.bz + g.bh / 2) > g.wh)) throw new Error('black key top must sit above the white tops');
+  if (!Object.isFrozen(g)) throw new Error('geometry must be frozen');
 });
 
 // ---- runner ----
