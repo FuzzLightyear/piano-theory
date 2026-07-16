@@ -102,6 +102,13 @@ test('rejects malformed input with line numbers', () => {
   throws(() => parsePatterns('# nothing\n[Scales]'), /no pattern definitions/);
 });
 
+test('ids that shadow Object.prototype names parse cleanly', () => {
+  const p = parsePatterns('[Chords]\nconstructor: Constructed = 1 3 5\ntoString: Stringy = 1 5');
+  eq(p.byId.constructor.semitones, [0, 4, 7], 'id "constructor" is a plain key');
+  eq(p.byId.toString.semitones, [0, 7], 'id "toString" is a plain key');
+  throws(() => parsePatterns('[Chords]\na: A = 1\na: B = 1'), /line 3: duplicate id/);
+});
+
 // The shipped data file must parse and match the intervals the app was built around.
 test('data/patterns.txt parses with expected content', async () => {
   const res = await fetch('../data/patterns.txt');

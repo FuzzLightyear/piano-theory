@@ -30,7 +30,9 @@ function parseDegrees(field, line) {
 // Each item is { id, name, semitones, group }.
 export function parsePatterns(text) {
   const groups = [];
-  const byId = {};
+  // null prototype: ids like "constructor" must be plain keys, never a walk
+  // up Object.prototype
+  const byId = Object.create(null);
   let current = null;
 
   String(text).split(/\r?\n/).forEach((raw, i) => {
@@ -55,7 +57,7 @@ export function parsePatterns(text) {
     const id = entry[1].trim();
     const name = entry[2].trim();
     if (!ID_RE.test(id)) fail(n, `bad id "${id}" (letters and digits, starting with a letter)`);
-    if (id in byId) fail(n, `duplicate id "${id}"`);
+    if (Object.hasOwn(byId, id)) fail(n, `duplicate id "${id}"`);
     if (!name || name.length > 40) fail(n, 'display name must be 1-40 characters');
 
     const item = Object.freeze({ id, name, semitones: parseDegrees(entry[3], n), group: current.name });
