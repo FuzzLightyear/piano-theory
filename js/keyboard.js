@@ -13,6 +13,24 @@ import { isWhite, pitchClass, PC_NAMES } from './theory.js';
 const TILT = 40;      // camera tilt in the angled view
 const TOP_TILT = 13;  // overhead keeps a slight tilt so key depth stays legible
 
+// How a pressed black key moves in the angled view, published to CSS as
+// --bdip/--btilt so these numbers have exactly one home. They are
+// constrained, not chosen freely — see pressedBlackFrontZ below.
+export const BLACK_PRESS = Object.freeze({ dip: 5, tilt: -1 });
+
+// A black key hinges near its back edge, so tilting it drives its FRONT edge
+// downward. The key only floats ~9px above the white tops, and the white keys
+// are opaque: sink the front edge below them and they paint over it, so the
+// pressed key's front half simply vanishes. This returns that front edge's
+// height; it must stay above geo.wh (the white key surface) at every board
+// size. Tested — dip 5 / tilt -1° clears by ~1.9px at the worst geometry,
+// where the shipped-and-reverted dip 6 / tilt -2.4° sank 2px under.
+export function pressedBlackFrontZ(geo, press = BLACK_PRESS) {
+  const t = (press.tilt * Math.PI) / 180;
+  // kbox pivots at 50% 3%, so the front edge lies 0.97·bd from the hinge
+  return geo.bz - press.dip + (geo.bh / 2) * Math.cos(t) + 0.97 * geo.bd * Math.sin(t);
+}
+
 // Which decoration a key carries. Overhead view is for reading notes, so
 // every key gets labelled there: pattern notes keep their gems, the rest get
 // plain names. One function feeds both render() and restyle() so the two
@@ -184,6 +202,8 @@ export class Keyboard {
       ['--ww', g.ww], ['--wd', g.wd], ['--wh', g.wh], ['--wz', g.wz],
       ['--bw', g.bw], ['--bd', g.bd], ['--bh', g.bh], ['--bz', g.bz],
     ]) dims.setProperty(name, `${value.toFixed(2)}px`);
+    dims.setProperty('--bdip', `${BLACK_PRESS.dip}px`);
+    dims.setProperty('--btilt', `${BLACK_PRESS.tilt}deg`);
     this.board.replaceChildren(frag);
     this.#applyCamera();
   }
