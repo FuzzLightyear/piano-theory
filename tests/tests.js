@@ -1,7 +1,7 @@
 import { parseNote, noteName, pitchClass, isWhite, PC_NAMES } from '../js/theory.js';
 import { parsePatterns } from '../js/patterns.js';
 import { pcOf, positionOf, MAJOR_LABELS, MINOR_LABELS, SIGNATURES } from '../js/circle.js';
-import { boardGeometry, Keyboard } from '../js/keyboard.js';
+import { boardGeometry, Keyboard, BLACK_PRESS, pressedBlackFrontZ } from '../js/keyboard.js';
 import { Synth, releaseTime } from '../js/audio.js';
 
 const cases = [];
@@ -172,6 +172,34 @@ test('key depth follows the stage but stays within limits', () => {
   const deep = boardGeometry(1200, 2000, 20);
   eq(deep.wd, deep.slot * 5.7, 'tall stage: depth tracks the slot, not the stage');
   if (!(deep.wd <= 272)) throw new Error('depth must stay under the cap');
+});
+
+// A pressed black key that dips below the white key tops gets painted over by
+// them, so its front half vanishes. This has regressed twice; the sweep keeps
+// the press constants honest at every board size the app can produce.
+test('a pressed black key never sinks below the white key tops', () => {
+  let worst = Infinity;
+  let worstAt = null;
+  for (let stageW = 260; stageW <= 1600; stageW += 20) {
+    for (let stageH = 400; stageH <= 900; stageH += 50) {
+      for (const whites of [15, 21, 29, 36, 44, 52]) {
+        const g = boardGeometry(stageW, stageH, whites);
+        const clearance = pressedBlackFrontZ(g) - g.wh;
+        if (clearance < worst) {
+          worst = clearance;
+          worstAt = `slot ${g.slot.toFixed(1)}, depth ${g.bd.toFixed(0)}`;
+        }
+      }
+    }
+  }
+  if (worst < 1) throw new Error(`black key clears white tops by only ${worst.toFixed(2)}px at ${worstAt}`);
+});
+
+test('the black press tilt is what the clearance depends on', () => {
+  const g = boardGeometry(900, 620, 36);
+  const overTilted = pressedBlackFrontZ(g, { dip: 6, tilt: -2.4 });
+  if (overTilted >= g.wh) throw new Error('the known-bad press should sink below the white tops');
+  if (!(BLACK_PRESS.tilt < 0)) throw new Error('black keys still tilt forward, just barely');
 });
 
 test('derived dimensions keep piano proportions', () => {

@@ -452,10 +452,16 @@ button:focus-visible, select:focus-visible, input:focus-visible {
 }
 .key.down .kbox { transition: transform .05s cubic-bezier(.35, .65, .45, 1); }
 
-/* Angled view: hinge physics — white keys tilt forward at a far-back fulcrum,
-   black keys dip near-vertically so they never sink below the white tops. */
+/* Angled view: hinge physics — white keys tilt forward at a far-back fulcrum.
+   Black keys must dip NEAR-VERTICALLY: they hinge at the back, so tilt drives
+   their front edge down, and they float only ~9px above the opaque white
+   keys. Overtilt and the white keys paint over the front half of the pressed
+   key — it looks like it vanishes. Only the angled view rotates, which is why
+   overhead never shows it. --bdip/--btilt come from BLACK_PRESS in
+   js/keyboard.js and are covered by a clearance test; do not hardcode them
+   back into this file. */
 .view-angled .key.white.down .kbox { transform: translateZ(-7px) rotateX(-3.6deg); }
-.view-angled .key.black.down .kbox { transform: translateZ(-6px) rotateX(-2.4deg); }
+.view-angled .key.black.down .kbox { transform: translateZ(calc(-1 * var(--bdip))) rotateX(var(--btilt)); }
 
 /* Overhead view keeps 13° of tilt, so a clean vertical dip reads on its own —
    the recessed shading and the gem sinking with the key carry the cue. */
